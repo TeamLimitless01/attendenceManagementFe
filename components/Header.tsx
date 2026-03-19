@@ -22,7 +22,9 @@ const Header = () => {
     { name: 'Home', href: '/' ,role:['admin','student','teacher']},
     { name: 'Profile', href: '/profile',role:['admin','student','teacher']},
     { name: 'Dashboard', href: '/admin/dashboard',role:['admin']},
-    { name: 'Users', href: '/admin/users',role:['admin']},
+    { name: 'Teachers', href: '/admin/users',role:['admin']},
+    { name: 'Students', href: '/admin/users/students',role:['admin']},
+    { name: 'My lectures', href: '/teacher/mylectures',role:['teacher']},
     { name: 'Subject & Class Management', href: '/admin/lms',role:['admin']},
     {
       name:'Attendence',href:'/student/attendence',role:['student']
@@ -31,7 +33,8 @@ const Header = () => {
       name:'Attendence',href:'/teacher/attendence',role:['teacher']
     },{
       name:'Dashboard',href:'/teacher/dashboard',role:['teacher']
-    }
+    },
+   
   ];
 
   const filteredNavLinks = navLinks.filter((link) => {
