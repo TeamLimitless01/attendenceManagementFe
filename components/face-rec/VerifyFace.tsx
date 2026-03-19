@@ -24,7 +24,13 @@ interface ModalState {
   alreadyMarked?: boolean;
 }
 
-export default function FaceAttendance() {
+export default function FaceAttendance({
+  strapiStudents = [],
+  isLoadingStudents = false,
+}: {
+  strapiStudents?: any[];
+  isLoadingStudents?: boolean;
+}) {
   // ── Data State ──
   const [students, setStudents] = useState<Student[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -89,12 +95,10 @@ export default function FaceAttendance() {
   // ── Boot ──
   useEffect(() => {
     const storedCfg = loadConfig();
-    const storedStudents = loadStudents();
     const storedLogs = loadLogs();
     const todayDate = storedCfg.date || new Date().toISOString().slice(0, 10);
 
     setCfg(storedCfg);
-    setStudents(storedStudents);
     setLogs(storedLogs);
     setToday(todayDate);
     setIClass(storedCfg.cls);
@@ -105,6 +109,21 @@ export default function FaceAttendance() {
     loadModels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Sync Strapi students → face-api Student[] whenever data arrives ──
+  useEffect(() => {
+    if (!strapiStudents || strapiStudents.length === 0) return;
+    const converted: import('@/lib/types').Student[] = strapiStudents
+      .filter((s: any) => Array.isArray(s.faceEmbedding) && s.faceEmbedding.length > 0)
+      .map((s: any) => ({
+        id: s.documentId || String(s.id),
+        name: s.name || s.roll_number || '',
+        roll: s.roll_number || s.documentId || String(s.id),
+        descriptor: s.faceEmbedding as number[],
+        photo: s.photo || '',
+      }));
+    setStudents(converted);
+  }, [strapiStudents]);
 
   // ── Load Models ──
   async function loadModels() {
@@ -237,7 +256,7 @@ export default function FaceAttendance() {
           ctx.strokeStyle = color;
           ctx.lineWidth = 3;
           ctx.strokeRect(box.x, box.y, box.width, box.height);
-          const lbl = known ? '✓ ' + match!.student.name : '? Unknown';
+          const lbl = known ? '✓ ' + match!.student.roll : '? Unknown';
           ctx.font = 'bold 13px Segoe UI, sans-serif';
           const tw = ctx.measureText(lbl).width + 14;
           ctx.fillStyle = color;
@@ -261,7 +280,7 @@ export default function FaceAttendance() {
                 ...currentLogs,
                 {
                   sid: match.student.id,
-                  name: match.student.name,
+                  name: match.student.roll,
                   roll: match.student.roll,
                   date: currentToday,
                   time: new Date().toLocaleTimeString(),
@@ -332,7 +351,7 @@ export default function FaceAttendance() {
       setCountdown(prev => {
         if (prev <= 1) {
           clearInterval(countdownTimerRef.current!);
-          closeModal(true);
+          closeModal(false);
           return 0;
         }
         return prev - 1;
@@ -554,12 +573,12 @@ export default function FaceAttendance() {
               </div>
             </div>
             {modal.type === 'authorized' && (
-              <button className="btn-green" style={{ flex: 2 }} onClick={() => closeModal(true)}>▶ Scan Next Student</button>
+              <button className="btn-green" style={{ flex: 2 }} onClick={() => closeModal(false)}>✔ Done</button>
             )}
             {modal.type === 'unauthorized' && (
               <>
-                <button className="btn-red" style={{ flex: 1 }} onClick={() => closeModal(false)}>✖ Dismiss</button>
-                <button className="btn-blue" style={{ flex: 1 }} onClick={() => closeModal(true)}>▶ Scan Again</button>
+                <button className="btn-red" style={{ flex: 1 }} onClick={() => closeModal(false)}>✖ Close</button>
+                <button className="btn-blue" style={{ flex: 1 }} onClick={() => closeModal(false)}>✖ Dismiss</button>
               </>
             )}
           </div>
@@ -582,7 +601,11 @@ export default function FaceAttendance() {
               <span><span className={`dot ${dotCam}`} />Attendance Camera</span>
               <span><span className={`dot ${dotModel}`} />Models</span>
               <span><span className={`dot ${dotDet}`} />Detection</span>
-              <span style={{ marginLeft: 'auto', fontWeight: 600 }}>Faces: {faceCount}</span>
+              <span style={{ marginLeft: 'auto', fontWeight: 600 }}>
+                {isLoadingStudents
+                  ? '⏳ Loading students…'
+                  : `Students: ${students.length} | Faces: ${faceCount}`}
+              </span>
             </div>
             <div className="video-wrap">
               {!camActive && (
