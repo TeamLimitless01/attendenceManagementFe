@@ -18,11 +18,13 @@ export const authOptions: NextAuthOptions = {
                         identifier: credentials?.identifier,
                         password: credentials?.password,
                     })) as any;
+                    console.log(user, 'user')
                     if (jwt && user) {
                         return {
                             id: String(user.id),
                             identifier: user?.email ? user.email : "User without identifier",
                             jwt: jwt,
+                            role: user.type,
                         };
                     }
 
@@ -39,6 +41,7 @@ export const authOptions: NextAuthOptions = {
             if (user) {
                 token.jwt = (user as any).jwt;
                 token.identifier = (user as any).identifier;
+                token.role = (user as any).role;
             }
             return token;
         },
@@ -46,6 +49,7 @@ export const authOptions: NextAuthOptions = {
             session.user = {
                 id: token.sub as string,
                 identifier: token.identifier as string,
+                role: token.role as string,
             };
             session.jwt = token.jwt as string;
             return session;
