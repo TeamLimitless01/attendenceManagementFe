@@ -56,8 +56,8 @@ export default function StudentMyLecturesPage() {
     currentDay = currentDay === 0 ? 7 : currentDay;
     
     // Time strings to HH:mm for easy comparison
-    const timeString = currentTime.toTimeString().slice(0, 5); // HH:mm
-    const dateString = currentTime.toISOString().split('T')[0]; // YYYY-MM-DD
+    const timeString = currentTime.toTimeString().slice(0, 5); // HH:mm - local
+    const dateString = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, '0')}-${String(currentTime.getDate()).padStart(2, '0')}`; // YYYY-MM-DD - local
     
     if (lecture.day_of_week !== currentDay) return false;
     
@@ -162,7 +162,7 @@ export default function StudentMyLecturesPage() {
                             </div>
                          </div>
                          <div className="p-5 flex-1 flex flex-col items-center justify-center bg-background">
-                            {isActive ? (
+                            {isActive && lecture.isSessionActive ? (
                                <Link href={`/student/attendence/${lId}`} className="w-full">
                                   <button className="w-full py-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex justify-center items-center gap-2">
                                      <CheckCircle2 className="w-6 h-6" /> Submit Attendance Now
@@ -170,7 +170,7 @@ export default function StudentMyLecturesPage() {
                                </Link>
                             ) : (
                                <div className="w-full py-4 bg-foreground/5 text-foreground/40 font-semibold rounded-xl flex justify-center items-center text-center px-4 cursor-not-allowed border border-foreground/5">
-                                  Attendance is closed outside of active lecture hours
+                                  Attendance is closed outside of active lecture hours or session not started yet
                                </div>
                             )}
                          </div>

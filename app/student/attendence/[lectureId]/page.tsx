@@ -1,33 +1,165 @@
 "use client"
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { CheckCircle2, Loader2, MapPin, Clock, Calendar, ShieldCheck, ArrowLeft, Navigation } from 'lucide-react';
+import { CheckCircle2, Loader2, MapPin, Clock, Calendar, ShieldCheck, ArrowLeft, QrCode, XCircle, RefreshCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { strapi } from '@/lib/sdk/sdk';
 import { useStrapi } from '@/lib/sdk/useStrapi';
 import Header from '@/components/Header';
 import Link from 'next/link';
 
-function getDistanceFromLatLonInMeters(lat1: any, lon1: any, lat2: any, lon2: any) {
-  const l1 = Number(lat1);
-  const lo1 = Number(lon1);
-  const l2 = Number(lat2);
-  const lo2 = Number(lon2);
+// ── QR Token Verification ─────────────────────────────────────────────────────
+const QR_WINDOW_MS = 3_000;
+const SECRET_KEY = process.env.NEXT_PUBLIC_SECRET || "default-attendance-secret-12345";
 
-  const R = 6371e3; // Radius of the earth in m
-  const dLat = (l2 - l1) * (Math.PI / 180);
-  const dLon = (lo2 - lo1) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(l1 * (Math.PI / 180)) * Math.cos(l2 * (Math.PI / 180)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; // Distance in m
+async function verifyQrToken(token: string, expectedLectureId: string): Promise<{ valid: boolean; reason?: string }> {
+  const parts = token.split('.');
+  if (parts.length !== 3) return { valid: false, reason: "Malformed QR code. Please rescan." };
+
+  const [tokenLectureId, timestampStr, receivedHash] = parts;
+  const timestamp = parseInt(timestampStr, 10);
+  if (isNaN(timestamp)) return { valid: false, reason: "Invalid QR timestamp." };
+
+  const age = Date.now() - timestamp;
+  if (age > QR_WINDOW_MS) {
+    return { valid: false, reason: `QR code expired (${Math.round(age / 1000)}s old). Wait for teacher to refresh.` };
+  }
+
+  if (tokenLectureId !== expectedLectureId) {
+    return { valid: false, reason: "QR code is for a different lecture." };
+  }
+
+  const raw = `${tokenLectureId}:${timestamp}`;
+  const encoder = new TextEncoder();
+  try {
+    const keyMaterial = await crypto.subtle.importKey(
+      "raw", encoder.encode(SECRET_KEY),
+      { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+    );
+    const sig = await crypto.subtle.sign("HMAC", keyMaterial, encoder.encode(raw));
+    const derivedHash = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+    if (derivedHash !== receivedHash) {
+      return { valid: false, reason: "QR signature mismatch. The code may be forged or tampered." };
+    }
+  } catch {
+    return { valid: false, reason: "Could not verify QR cryptographic signature." };
+  }
+
+  return { valid: true };
 }
 
+// ── QR Scanner Component ──────────────────────────────────────────────────────
+const SCANNER_ID = 'qr-reader-widget';
+
+function QrScannerWidget({ onScanSuccess }: { onScanSuccess: (text: string) => void }) {
+  const scannerRef = useRef<any>(null);
+  const isProcessing = useRef(false);
+  const [cameraError, setCameraError] = useState('');
+  const [isStarting, setIsStarting] = useState(true);
+
+  useEffect(() => {
+    let instance: any = null;
+
+    const startScanner = async () => {
+      try {
+        const { Html5Qrcode } = await import('html5-qrcode');
+        instance = new Html5Qrcode(SCANNER_ID);
+        scannerRef.current = instance;
+
+        const onSuccess = async (decodedText: string) => {
+          if (isProcessing.current) return;
+          isProcessing.current = true;
+
+          try {
+            // Stop scanner first to release hardware and prevent multiple hits
+            if (instance && instance.isScanning) {
+              await instance.stop();
+            }
+            onScanSuccess(decodedText);
+          } catch (err) {
+            console.error("Failed to stop scanner after success:", err);
+            // Still pass result up since we got the code
+            onScanSuccess(decodedText);
+          }
+        };
+
+        const onFrameError = () => {};
+
+        try {
+          // Prefer environment (rear) camera
+          await instance.start(
+            { facingMode: 'environment' }, 
+            { fps: 10, qrbox: { width: 240, height: 240 } }, 
+            onSuccess, 
+            onFrameError
+          );
+        } catch {
+          // Fallback to any camera (webcam)
+          await instance.start(
+            { facingMode: 'user' }, 
+            { fps: 10, qrbox: { width: 240, height: 240 } }, 
+            onSuccess, 
+            onFrameError
+          );
+        }
+        setIsStarting(false);
+      } catch (err: any) {
+        console.error("Scanner startup error:", err);
+        const msg = (err?.message || '').toLowerCase();
+        if (msg.includes('permission') || msg.includes('denied') || msg.includes('notallowed')) {
+          setCameraError('Camera permission denied. Please check your browser settings.');
+        } else if (msg.includes('notfound') || msg.includes('no camera')) {
+          setCameraError('No camera detected on this device.');
+        } else {
+          setCameraError('Could not start camera. Please refresh and try again.');
+        }
+        setIsStarting(false);
+      }
+    };
+
+    startScanner();
+
+    return () => {
+      // Cleanup: stop if it was still running
+      if (scannerRef.current && scannerRef.current.isScanning) {
+        scannerRef.current.stop().catch(() => {});
+      }
+    };
+  }, []);
+
+  return (
+    <div className="w-full">
+      <style>{`
+        #${SCANNER_ID} > div[id$="__dashboard"] { display: none !important; }
+        #${SCANNER_ID} > div[id$="__scan_region"] { border: none !important; padding: 0 !important; margin: 0 !important; box-shadow: none !important; }
+        #${SCANNER_ID} video { width: 100% !important; height: auto !important; display: block !important; border-radius: 12px; }
+        #${SCANNER_ID} canvas { border-radius: 0 !important; }
+        #${SCANNER_ID} img { display: none !important; }
+      `}</style>
+
+      {isStarting && (
+        <div className="flex flex-col items-center gap-3 py-16">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
+          <p className="text-sm text-white/60">Starting camera…</p>
+        </div>
+      )}
+
+      {cameraError ? (
+        <div className="p-5 bg-red-500/10 border border-red-500/20 rounded-2xl text-center">
+          <XCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+          <p className="text-red-600 font-bold text-sm tracking-tight">{cameraError}</p>
+        </div>
+      ) : (
+        <div id={SCANNER_ID} className="w-full overflow-hidden" style={{ display: isStarting ? 'none' : 'block' }} />
+      )}
+    </div>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function SubmitAttendancePage() {
   const { data: session } = useSession();
   //@ts-ignore
@@ -37,121 +169,80 @@ export default function SubmitAttendancePage() {
   const lectureId = params.lectureId as string;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'verified' | 'failed' | 'no_geofence'>('idle');
-  const [locationError, setLocationError] = useState('');
+  const [scanState, setScanState] = useState<'idle' | 'scanning' | 'verifying' | 'error'>('idle');
+  const [scanError, setScanError] = useState('');
 
-  const todayDate = new Date().toISOString().split('T')[0];
+  const d = new Date();
+  const todayDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; // Robust local YYYY-MM-DD
 
-  // Fetch Student Profile mapping to this User
   const { data: studentsData, isLoading: isLoadingStudent } = useStrapi('students', {
     filters: userId ? { user: { id: { $eq: userId } } } : undefined,
   });
-
   const student = studentsData?.data?.[0] as any;
 
-  // Fetch Lecture Details for UI
-  const { data: lectureData, isLoading: isLoadingLecture } = useStrapi(`lectures/${lectureId}`, {
-    populate: '*'
-  });
-
+  const { data: lectureData, isLoading: isLoadingLecture } = useStrapi(`lectures/${lectureId}`, { populate: '*' });
   const lectureAttr = (lectureData as any)?.data?.attributes || (lectureData as any)?.data;
   const classroomAttr = lectureAttr?.classroom?.data?.attributes || lectureAttr?.classroom;
 
-  useEffect(() => {
-    if (classroomAttr) {
-      if (!classroomAttr.latitude || !classroomAttr.longitude || !classroomAttr.radius) {
-        setVerificationStatus('no_geofence');
-      }
-    }
-  }, [classroomAttr]);
-
-  // Check for any existing attendance for today
   const { data: existingAttendanceData, isLoading: isLoadingExisting, mutate: mutateAttendance } = useStrapi('attendences', {
-    filters: (student?.documentId || student?.id) && lectureId ? {
-      student: {
-        id: { $eq: student?.id }
-      },
-      lecture: {
-        id: { $eq: (lectureData as any)?.data?.id }
-      },
-      date: {
-        $eq: todayDate
-      }
+    filters: student?.id && lectureId ? {
+      student: { id: { $eq: student.id } },
+      lecture: { id: { $eq: (lectureData as any)?.data?.id || lectureId } },
+      date: { $eq: todayDate }
     } : undefined
   });
 
-  const alreadyEvaluated = (existingAttendanceData?.data || []).length > 0;
+  const alreadySubmitted = (existingAttendanceData?.data || []).length > 0;
   const isLoading = isLoadingStudent || isLoadingLecture || isLoadingExisting;
 
-  const handleVerifyLocation = () => {
-    setVerificationStatus('verifying');
-    setLocationError('');
-    
-    if (!navigator.geolocation) {
-      setVerificationStatus('failed');
-      setLocationError("Geolocation is not supported by your browser.");
+  // Silent background GPS log
+  useEffect(() => {
+    if (!classroomAttr?.latitude || !classroomAttr?.longitude) return;
+    navigator.geolocation?.getCurrentPosition(
+      (pos) => {
+        const dist = getDistance(pos.coords.latitude, pos.coords.longitude, classroomAttr.latitude, classroomAttr.longitude);
+        console.log(`[Attendance] GPS distance: ${Math.round(dist)}m (allowed: ${classroomAttr.radius}m)`);
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  }, [classroomAttr]);
+
+  const handleQrScanned = async (rawToken: string) => {
+    setScanState('verifying');
+    setScanError('');
+
+    const result = await verifyQrToken(rawToken, lectureId);
+    if (!result.valid) {
+      setScanState('error');
+      setScanError(result.reason || 'Invalid QR code.');
       return;
     }
 
-    navigator.geolocation.getCurrentPosition((pos) => {
-      const userLat = pos.coords.latitude;
-      const userLon = pos.coords.longitude;
-      
-      const targetLat = classroomAttr.latitude;
-      const targetLon = classroomAttr.longitude;
-      const radius = Number(classroomAttr.radius);
-
-      const distance = getDistanceFromLatLonInMeters(userLat, userLon, targetLat, targetLon);
-      const hardwareAccuracyMargin = pos.coords.accuracy; // GPS inaccuracy in meters
-
-      console.log("Device Lat/Lon:", userLat, userLon, "| Target Lat/Lon:", targetLat, targetLon, "| Distance:", distance, "m | Base Radius:", radius, "m | Hardware Error Margin:", hardwareAccuracyMargin, "m")
-      
-      // We must offset the geofence radius by the hardware's inherent inaccuracy bounds
-      const dynamicallyAdjustedRadius = radius + (hardwareAccuracyMargin || 0);
-
-      if (distance <= dynamicallyAdjustedRadius) {
-        setVerificationStatus('verified');
-        toast.success("Location verified successfully!");
-      } else {
-        setVerificationStatus('failed');
-        setLocationError(`You are ~${Math.round(distance)}m away. You must be strictly within ${Math.round(dynamicallyAdjustedRadius)}m limits (including GPS error margins) of the assigned classroom locus.`);
-      }
-    }, (err) => {
-      setVerificationStatus('failed');
-      setLocationError(err.message || "Failed to get location. Please allow location permissions.");
-    }, {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0
-    });
-  };
-
-  const handleSaveAttendance = async () => {
     if (!student) {
-      toast.error("Could not verify your student profile.");
+      setScanState('error');
+      setScanError("Could not verify your student profile.");
       return;
     }
 
     setIsSubmitting(true);
-    
     try {
-      // Create the Attendance Record
-      const res = await strapi.create('attendences', {
-        student: student.documentId || student.id,
+      const studentId = student.documentId || student.id;
+      if (!studentId) throw new Error("Student ID missing");
+
+      await strapi.create('attendences', {
+        student: studentId,
         lecture: lectureId,
         date: todayDate,
+        type: 'auto',
       });
-
       toast.success("Attendance verified and saved!");
       await mutateAttendance();
-      
-      setTimeout(() => {
-         router.push('/student/mylectures');
-      }, 1500);
-
+      setScanState('idle');
+      setTimeout(() => router.push('/student/mylectures'), 1500);
     } catch (err: any) {
-      console.error(err);
-      toast.error(err?.response?.data?.error?.message || "Failed to submit attendance.");
+      setScanState('error');
+      setScanError(err?.response?.data?.error?.message || "Failed to record attendance.");
     } finally {
       setIsSubmitting(false);
     }
@@ -160,10 +251,10 @@ export default function SubmitAttendancePage() {
   if (isLoading) {
     return (
       <div className="flex flex-col min-h-screen bg-background">
-         <Header />
-         <main className="flex-1 flex items-center justify-center py-20">
-            <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
-         </main>
+        <Header />
+        <main className="flex-1 flex items-center justify-center py-20">
+          <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
+        </main>
       </div>
     );
   }
@@ -171,151 +262,179 @@ export default function SubmitAttendancePage() {
   if (!lectureAttr) {
     return (
       <div className="flex flex-col min-h-screen bg-background">
-         <Header />
-         <main className="flex-1 flex flex-col items-center justify-center py-20 px-4 text-center">
-            <h2 className="text-2xl font-bold mb-2">Lecture Not Found</h2>
-            <p className="text-foreground/50 mb-6">We could not locate the details for this session.</p>
-            <Link href="/student/mylectures" className="text-blue-600 hover:underline">Return to My Lectures</Link>
-         </main>
+        <Header />
+        <main className="flex-1 flex flex-col items-center justify-center py-20 px-4 text-center">
+          <h2 className="text-2xl font-bold mb-2">Lecture Not Found</h2>
+          <p className="text-foreground/50 mb-6">We could not locate the details for this session.</p>
+          <Link href="/student/mylectures" className="text-blue-600 hover:underline">Return to My Lectures</Link>
+        </main>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col min-h-screen bg-foreground/[0.02]">
-       <Header />
-       <main className="flex-1 py-28 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
-         <ToastContainer position="top-right" autoClose={3000} />
-         
-         <div className="w-full max-w-lg">
-            <Link href="/student/mylectures" className="inline-flex items-center gap-2 text-foreground/50 hover:text-foreground font-medium mb-6 transition-colors">
-              <ArrowLeft className="w-4 h-4" /> Back to lectures
-            </Link>
+      <Header />
+      <main className="flex-1 py-28 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
+        <ToastContainer position="top-right" autoClose={3000} />
 
-            <motion.div 
-               initial={{ opacity: 0, y: 20 }}
-               animate={{ opacity: 1, y: 0 }}
-               className="bg-background rounded-3xl shadow-2xl border border-foreground/10 overflow-hidden"
-            >
-               <div className="px-8 py-10 text-center relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-green-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-                  
-                  <div className="w-20 h-20 bg-green-50 dark:bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6 relative">
-                     <ShieldCheck className="w-10 h-10 text-green-500" />
-                     {alreadyEvaluated && (
-                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center border-2 border-background text-white">
-                           <CheckCircle2 className="w-4 h-4" />
-                        </div>
-                     )}
+        <div className="w-full max-w-lg">
+          <Link href="/student/mylectures" className="inline-flex items-center gap-2 text-foreground/50 hover:text-foreground font-medium mb-6 transition-colors">
+            <ArrowLeft className="w-4 h-4" /> Back to lectures
+          </Link>
+
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+            className="bg-background rounded-3xl shadow-2xl border border-foreground/10 overflow-hidden">
+
+            {/* Header */}
+            <div className="px-8 py-10 text-center relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-green-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+              <div className="w-20 h-20 bg-green-50 dark:bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6 relative">
+                <ShieldCheck className="w-10 h-10 text-green-500" />
+                {alreadySubmitted && (
+                  <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center border-2 border-background text-white">
+                    <CheckCircle2 className="w-4 h-4" />
                   </div>
-                  
-                  <h1 className="text-2xl font-extrabold text-foreground mb-2">
-                    {alreadyEvaluated ? 'Attendance Registered' : 'Verify Attendance'}
-                  </h1>
-                  
-                  <p className="text-foreground/60 text-sm">
-                    {alreadyEvaluated 
-                      ? "Your attendance for this active lecture has already been successfully recorded for today."
-                      : "Confirm your presence for the active lecture session below."}
+                )}
+              </div>
+              <h1 className="text-2xl font-extrabold text-foreground mb-2">
+                {alreadySubmitted ? 'Attendance Registered' : 'Scan QR to Attend'}
+              </h1>
+              <p className="text-foreground/60 text-sm">
+                {alreadySubmitted
+                  ? "Your attendance for today's lecture has been successfully recorded."
+                  : "Ask your teacher to show the QR code, then scan it to verify your live presence."}
+              </p>
+            </div>
+
+            {/* Lecture Details */}
+            <div className="px-8 py-6 border-t border-foreground/10 bg-foreground/[0.02]">
+              <div className="bg-background border border-foreground/10 rounded-2xl p-5 space-y-4">
+                <div>
+                  <p className="text-xs font-bold text-foreground/40 uppercase tracking-wider mb-1">Lecture</p>
+                  <p className="font-bold text-foreground text-lg">
+                    {lectureAttr.name || lectureAttr.subject?.data?.attributes?.name || lectureAttr.subject?.name || 'Ongoing Session'}
                   </p>
-
-                  {/* Geofence Alert Notice */}
-                  {!alreadyEvaluated && verificationStatus !== 'no_geofence' && verificationStatus !== 'verified' && (
-                     <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-orange-500/10 text-orange-600 text-xs font-bold rounded-lg border border-orange-500/20">
-                       <MapPin className="w-4 h-4" /> GPS Location Verification Required
-                     </div>
-                  )}
-               </div>
-
-               <div className="px-8 py-6 border-t border-foreground/10 bg-foreground/[0.02]">
-                  <div className="bg-background border border-foreground/10 rounded-2xl p-5 space-y-4">
-                     <div>
-                        <p className="text-xs font-bold text-foreground/40 uppercase tracking-wider mb-1">Lecture Context</p>
-                        <p className="font-bold text-foreground text-lg">{lectureAttr.name || lectureAttr.subject?.data?.attributes?.name || lectureAttr.subject?.name || 'Ongoing Session'}</p>
-                     </div>
-                     
-                     <div className="grid grid-cols-2 gap-4">
-                        <div className="flex items-start gap-2.5">
-                           <Calendar className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
-                           <div>
-                              <p className="text-xs font-bold text-foreground/40 uppercase">Date</p>
-                              <p className="text-sm font-semibold text-foreground/80">{todayDate}</p>
-                           </div>
-                        </div>
-                        <div className="flex items-start gap-2.5">
-                           <Clock className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
-                           <div>
-                              <p className="text-xs font-bold text-foreground/40 uppercase">Duration</p>
-                              <p className="text-sm font-semibold text-foreground/80">{lectureAttr.start_time?.slice(0,5)} - {lectureAttr.end_time?.slice(0,5)}</p>
-                           </div>
-                        </div>
-                        <div className="flex items-start gap-2.5 col-span-2">
-                           <MapPin className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
-                           <div>
-                              <p className="text-xs font-bold text-foreground/40 uppercase">Assigned Location</p>
-                              <p className="text-sm font-semibold text-foreground/80">
-                                 {classroomAttr?.name || 'Standard Room'}
-                                 {classroomAttr?.radius && ` (Geofence: ${classroomAttr.radius}m)`}
-                              </p>
-                           </div>
-                        </div>
-                     </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-start gap-2.5">
+                    <Calendar className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-bold text-foreground/40 uppercase">Date</p>
+                      <p className="text-sm font-semibold text-foreground/80">{todayDate}</p>
+                    </div>
                   </div>
-               </div>
+                  <div className="flex items-start gap-2.5">
+                    <Clock className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-bold text-foreground/40 uppercase">Duration</p>
+                      <p className="text-sm font-semibold text-foreground/80">
+                        {lectureAttr.start_time?.slice(0,5)} – {lectureAttr.end_time?.slice(0,5)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2.5 col-span-2">
+                    <MapPin className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-bold text-foreground/40 uppercase">Room</p>
+                      <p className="text-sm font-semibold text-foreground/80">{classroomAttr?.name || 'Standard Room'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-               <div className="p-8 bg-background border-t border-foreground/10">
-                  <AnimatePresence mode="wait">
-                     {alreadyEvaluated ? (
-                        <motion.div 
-                          key="done"
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="w-full py-4 bg-green-500/10 text-green-600 font-bold rounded-2xl flex justify-center items-center gap-2 border border-green-500/20"
-                        >
-                           <CheckCircle2 className="w-5 h-5" /> Verified for Today
-                        </motion.div>
-                     ) : (
-                        <motion.div key="action_area" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
-                           {locationError && (
-                              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 text-sm font-medium text-center">
-                                 {locationError}
-                              </div>
-                           )}
+            {/* Action Area */}
+            <div className="p-8 bg-background border-t border-foreground/10">
+              <AnimatePresence mode="wait">
+                {alreadySubmitted && (
+                  <motion.div key="done" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+                    className="w-full py-4 bg-green-500/10 text-green-600 font-bold rounded-2xl flex justify-center items-center gap-2 border border-green-500/20">
+                    <CheckCircle2 className="w-5 h-5" /> Verified for Today
+                  </motion.div>
+                )}
+                {!alreadySubmitted && scanState === 'idle' && (
+                  <motion.button key="scan-btn" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+                    onClick={() => setScanState('scanning')}
+                    className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg hover:-translate-y-0.5 flex justify-center items-center gap-2">
+                    <QrCode className="w-5 h-5" /> Scan Attendance QR
+                  </motion.button>
+                )}
+                {!alreadySubmitted && (scanState === 'verifying' || isSubmitting) && (
+                  <motion.div key="verifying" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+                    className="w-full py-4 bg-blue-500/10 text-blue-600 font-bold rounded-2xl flex justify-center items-center gap-2 border border-blue-500/20">
+                    <Loader2 className="w-5 h-5 animate-spin" /> Verifying QR…
+                  </motion.div>
+                )}
+                {!alreadySubmitted && scanState === 'error' && (
+                  <motion.div key="error" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-3 w-full">
+                    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-center">
+                      <XCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+                      <p className="text-red-600 font-bold text-sm">{scanError}</p>
+                    </div>
+                    <button onClick={() => { setScanError(''); setScanState('scanning'); }}
+                      className="w-full py-4 bg-foreground/5 hover:bg-foreground/10 text-foreground font-bold rounded-2xl transition-all flex justify-center items-center gap-2 border border-foreground/10">
+                      <RefreshCcw className="w-5 h-5" /> Rescan QR Code
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+        </div>
 
-                           {(verificationStatus === 'idle' || verificationStatus === 'verifying' || verificationStatus === 'failed') && (
-                              <button 
-                                onClick={handleVerifyLocation}
-                                disabled={verificationStatus === 'verifying'}
-                                className="w-full py-4 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-2xl transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex justify-center items-center gap-2 disabled:opacity-50 disabled:hover:translate-y-0"
-                              >
-                                {verificationStatus === 'verifying' ? (
-                                   <><Loader2 className="w-5 h-5 animate-spin" /> Verifying Accuracy...</>
-                                ) : (
-                                   <><Navigation className="w-5 h-5" /> Verify My Location</>
-                                )}
-                              </button>
-                           )}
+        {/* ── Fullscreen QR Scanner Overlay ───────────────────────────────── */}
+        <AnimatePresence>
+          {scanState === 'scanning' && (
+            <motion.div key="scan-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[200] bg-black flex flex-col">
 
-                           {(verificationStatus === 'verified' || verificationStatus === 'no_geofence') && (
-                              <button 
-                                onClick={handleSaveAttendance}
-                                disabled={isSubmitting}
-                                className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 flex justify-center items-center gap-2"
-                              >
-                                 {isSubmitting ? (
-                                    <><Loader2 className="w-5 h-5 animate-spin" /> Recording...</>
-                                 ) : (
-                                    <><ShieldCheck className="w-5 h-5" /> Guarantee Presence</>
-                                 )}
-                              </button>
-                           )}
-                        </motion.div>
-                     )}
-                  </AnimatePresence>
-               </div>
+              {/* Top bar */}
+              <div className="flex items-center justify-between px-6 pt-12 pb-4 shrink-0">
+                <div>
+                  <p className="text-white font-black text-xl">Scan QR Code</p>
+                  <p className="text-white/50 text-sm">Point at the code shown by your teacher</p>
+                </div>
+                <button onClick={() => setScanState('idle')}
+                  className="p-3 bg-white/10 hover:bg-white/20 rounded-full transition-all">
+                  <XCircle className="w-6 h-6 text-white" />
+                </button>
+              </div>
+
+              {/* Camera area */}
+              <div className="flex-1 flex flex-col items-center justify-center px-6 gap-6 min-h-0">
+                <div className="relative w-full max-w-sm">
+                  {/* Corner markers */}
+                  <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-blue-400 rounded-tl-lg z-10 pointer-events-none" />
+                  <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-blue-400 rounded-tr-lg z-10 pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-blue-400 rounded-bl-lg z-10 pointer-events-none" />
+                  <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-blue-400 rounded-br-lg z-10 pointer-events-none" />
+                  {/* Scanning laser */}
+                  <motion.div
+                    className="absolute left-2 right-2 h-0.5 bg-blue-400/80 z-10 rounded-full pointer-events-none"
+                    style={{ boxShadow: '0 0 8px 2px rgba(96,165,250,0.6)' }}
+                    animate={{ top: ['8%', '92%', '8%'] }}
+                    transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                  <QrScannerWidget onScanSuccess={handleQrScanned} />
+                </div>
+                <p className="text-white/40 text-xs text-center max-w-xs">
+                  The QR code refreshes every 15 seconds — scan quickly!
+                </p>
+              </div>
             </motion.div>
-         </div>
-       </main>
+          )}
+        </AnimatePresence>
+      </main>
     </div>
   );
 }
+
+// Haversine (silent background GPS)
+function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371e3;
+  const dLat = (Number(lat2) - Number(lat1)) * (Math.PI / 180);
+  const dLon = (Number(lon2) - Number(lon1)) * (Math.PI / 180);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(Number(lat1) * Math.PI / 180) * Math.cos(Number(lat2) * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}WeakSet
