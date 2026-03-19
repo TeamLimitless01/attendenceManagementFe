@@ -20,7 +20,7 @@ const Header = () => {
 
   const navLinks = [
     { name: 'Home', href: '/' ,role:['admin','student','teacher']},
-    { name: 'Profile', href: '/profile',role:['admin','student','teacher']},
+    { name: 'Profile', href: '/profile',role:['student','teacher']},
     { name: 'Dashboard', href: '/admin/dashboard',role:['admin']},
     { name: 'Teachers', href: '/admin/users',role:['admin']},
     { name: 'Students', href: '/admin/users/students',role:['admin']},
