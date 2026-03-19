@@ -186,13 +186,15 @@ export default function SubmitAttendancePage() {
 
   const { data: existingAttendanceData, isLoading: isLoadingExisting, mutate: mutateAttendance } = useStrapi('attendences', {
     filters: student?.id && lectureId ? {
-      student: { id: { $eq: student.id } },
-      lecture: { id: { $eq: (lectureData as any)?.data?.id || lectureId } },
+      student: { [student?.documentId ? 'documentId' : 'id']: { $eq: student.documentId || student.id } },
+      lecture: { [lectureId.length > 15 ? 'documentId' : 'id']: { $eq: lectureId } },
       date: { $eq: todayDate }
     } : undefined
   });
 
-  const alreadySubmitted = (existingAttendanceData?.data || []).length > 0;
+  const attendanceRecord = (existingAttendanceData?.data as any)?.[0]?.attributes || (existingAttendanceData?.data as any)?.[0];
+  const alreadySubmitted = !!attendanceRecord;
+  const isPresent = attendanceRecord?.currentStatus === 'present';
   const isLoading = isLoadingStudent || isLoadingLecture || isLoadingExisting;
 
   // Silent background GPS log
@@ -235,14 +237,34 @@ export default function SubmitAttendancePage() {
         lecture: lectureId,
         date: todayDate,
         type: 'auto',
+        currentStatus: 'present',
       });
       toast.success("Attendance verified and saved!");
       await mutateAttendance();
       setScanState('idle');
       setTimeout(() => router.push('/student/mylectures'), 1500);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleManualRequest = async () => {
+    if (!student) return;
+    setIsSubmitting(true);
+    try {
+      const studentId = student.documentId || student.id;
+      await strapi.create('attendences', {
+        student: studentId,
+        lecture: lectureId,
+        date: todayDate,
+        type: 'manual',
+        currentStatus: 'absent',
+      });
+      toast.info("Request sent to teacher!");
+      await mutateAttendance();
+      setTimeout(() => router.push('/student/mylectures'), 1500);
     } catch (err: any) {
-      setScanState('error');
-      setScanError(err?.response?.data?.error?.message || "Failed to record attendance.");
+      toast.error(err?.response?.data?.error?.message || "Failed to send request.");
     } finally {
       setIsSubmitting(false);
     }
@@ -347,18 +369,34 @@ export default function SubmitAttendancePage() {
             {/* Action Area */}
             <div className="p-8 bg-background border-t border-foreground/10">
               <AnimatePresence mode="wait">
-                {alreadySubmitted && (
+                {alreadySubmitted && isPresent && (
                   <motion.div key="done" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
                     className="w-full py-4 bg-green-500/10 text-green-600 font-bold rounded-2xl flex justify-center items-center gap-2 border border-green-500/20">
                     <CheckCircle2 className="w-5 h-5" /> Verified for Today
                   </motion.div>
                 )}
+                {alreadySubmitted && !isPresent && (
+                  <motion.div key="pending" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+                    className="w-full py-4 bg-orange-500/10 text-orange-600 font-bold rounded-2xl flex justify-center items-center gap-2 border border-orange-500/20">
+                    <Clock className="w-5 h-5" /> Request Pending Approval
+                  </motion.div>
+                )}
                 {!alreadySubmitted && scanState === 'idle' && (
-                  <motion.button key="scan-btn" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-                    onClick={() => setScanState('scanning')}
-                    className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg hover:-translate-y-0.5 flex justify-center items-center gap-2">
-                    <QrCode className="w-5 h-5" /> Scan Attendance QR
-                  </motion.button>
+                  <div className="space-y-3 w-full">
+                    <motion.button key="scan-btn" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+                      onClick={() => setScanState('scanning')}
+                      className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg hover:-translate-y-0.5 flex justify-center items-center gap-2">
+                      <QrCode className="w-5 h-5" /> Scan Attendance QR
+                    </motion.button>
+                    
+                    <motion.button key="request-btn" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+                      onClick={handleManualRequest}
+                      disabled={isSubmitting}
+                      className="w-full py-4 bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 font-bold rounded-2xl transition-all border border-orange-500/20 flex justify-center items-center gap-2 disabled:opacity-50">
+                      {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <MapPin className="w-5 h-5" />} 
+                      Request to Teacher
+                    </motion.button>
+                  </div>
                 )}
                 {!alreadySubmitted && (scanState === 'verifying' || isSubmitting) && (
                   <motion.div key="verifying" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}

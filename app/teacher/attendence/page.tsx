@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSession } from 'next-auth/react';
-import { Search, Calendar, BookOpen, Clock, Loader2, MapPin, PlayCircle, X, QrCode, StopCircle } from 'lucide-react';
+import { Search, Calendar, BookOpen, Clock, Loader2, MapPin, PlayCircle, X, QrCode, StopCircle, UserCheck, Check } from 'lucide-react';
 import Header from '@/components/Header';
 import { useStrapi } from '@/lib/sdk/useStrapi';
 import QRCode from "react-qr-code";
@@ -52,10 +52,17 @@ export default function TeacherAttendanceHub() {
   const [activeQrLectureId, setActiveQrLectureId] = useState<string | null>(null);
   const [activeLectureName, setActiveLectureName] = useState<string>('');
   const [qrToken, setQrToken] = useState<string>('');
-  const [countdown, setCountdown] = useState(15);
+  const [countdown, setCountdown] = useState(3);
   
   // Track which lectures currently have an ongoing session { [lectureId]: sessionDocumentId }
   const [activeSessionsMap, setActiveSessionsMap] = useState<Record<string, string>>({});
+  
+  // Manual Requests State
+  const [activeRequestsLectureId, setActiveRequestsLectureId] = useState<string | null>(null);
+  const [isApproving, setIsApproving] = useState<string | null>(null);
+
+  const d = new Date();
+  const todayDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
   // Keep time updated every minute to reactively show active lectures
   useEffect(() => {
@@ -142,7 +149,22 @@ export default function TeacherAttendanceHub() {
 
   const closeModal = () => {
     setActiveQrLectureId(null);
+    setActiveRequestsLectureId(null);
     setQrToken('');
+  };
+
+  const handleApproveRequest = async (attendanceId: string) => {
+    setIsApproving(attendanceId);
+    try {
+      await strapi.update('attendences', attendanceId, { currentStatus: 'present' });
+      toast.success("Attendance approved!");
+      // The useStrapi hook will need to be refreshed if we have nested data, 
+      // but if we use it inside the modal it will auto-update if we manage mutate.
+    } catch (err) {
+      toast.error("Failed to approve attendance.");
+    } finally {
+      setIsApproving(null);
+    }
   };
 
   // QR Token Rotation logic
@@ -255,37 +277,46 @@ export default function TeacherAttendanceHub() {
                                </div>
                             </div>
                          </div>
-                         <div className="p-5 flex-1 flex flex-col items-center justify-center bg-background">
+                          <div className="p-5 flex-1 flex flex-col items-center justify-center bg-background">
                             {isActive ? (
-                               isSessionRunningForThis ? (
-                                 <div className="grid grid-cols-2 gap-3 w-full">
-                                    <button 
-                                      onClick={() => openQrModal(lId, lectureTitle)}
-                                      className="py-4 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-all shadow-lg hover:-translate-y-0.5 flex justify-center items-center gap-2 group"
-                                    >
-                                       <QrCode className="w-5 h-5 group-hover:scale-110 transition-transform" /> Show QR
-                                    </button>
-                                    <button 
-                                      onClick={() => handleEndSession(lId)}
-                                      className="py-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition-all shadow-lg hover:-translate-y-0.5 flex justify-center items-center gap-2 group"
-                                    >
-                                       <StopCircle className="w-5 h-5 group-hover:scale-110 transition-transform" /> End Session
-                                    </button>
-                                 </div>
-                               ) : (
+                               <div className="w-full space-y-3">
+                                 {isSessionRunningForThis ? (
+                                   <div className="grid grid-cols-2 gap-3 w-full">
+                                      <button 
+                                        onClick={() => openQrModal(lId, lectureTitle)}
+                                        className="py-4 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-all shadow-lg hover:-translate-y-0.5 flex justify-center items-center gap-2 group"
+                                      >
+                                         <QrCode className="w-5 h-5 group-hover:scale-110 transition-transform" /> Show QR
+                                      </button>
+                                      <button 
+                                        onClick={() => handleEndSession(lId)}
+                                        className="py-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition-all shadow-lg hover:-translate-y-0.5 flex justify-center items-center gap-2 group"
+                                      >
+                                         <StopCircle className="w-5 h-5 group-hover:scale-110 transition-transform" /> End Session
+                                      </button>
+                                   </div>
+                                 ) : (
+                                   <button 
+                                     onClick={() => handleStartSession(lId)}
+                                     className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex justify-center items-center gap-2 group"
+                                   >
+                                      <PlayCircle className="w-6 h-6 group-hover:scale-110 transition-transform" /> Start Session
+                                   </button>
+                                 )}
+
                                  <button 
-                                   onClick={() => handleStartSession(lId)}
-                                   className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex justify-center items-center gap-2 group"
+                                   onClick={() => setActiveRequestsLectureId(lId)}
+                                   className="w-full py-3 bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 font-bold rounded-xl transition-all border border-orange-500/20 flex justify-center items-center gap-2 group"
                                  >
-                                    <PlayCircle className="w-6 h-6 group-hover:scale-110 transition-transform" /> Start Session
+                                    <UserCheck className="w-5 h-5 group-hover:scale-110 transition-transform" /> View Manual Requests
                                  </button>
-                               )
+                               </div>
                             ) : (
                                <div className="w-full py-4 bg-foreground/5 text-foreground/40 font-semibold rounded-xl flex justify-center items-center text-center px-4 cursor-not-allowed border border-foreground/5">
                                   Gatekeeping closed outside of active lecture hours
                                </div>
                             )}
-                         </div>
+                          </div>
                       </motion.div>
                     )
                   })}
@@ -347,8 +378,111 @@ export default function TeacherAttendanceHub() {
                  </motion.div>
                </div>
             )}
-         </AnimatePresence>
-       </main>
+          </AnimatePresence>
+
+          {/* Manual Requests Modal */}
+          <AnimatePresence>
+            {activeRequestsLectureId && (
+              <RequestListOverlay 
+                lectureId={activeRequestsLectureId} 
+                todayDate={todayDate} 
+                onClose={closeModal}
+                handleApprove={handleApproveRequest}
+                isApproving={isApproving}
+              />
+            )}
+          </AnimatePresence>
+        </main>
+     </div>
+  );
+}
+
+function RequestListOverlay({ lectureId, todayDate, onClose, handleApprove, isApproving }: any) {
+  const { data: requestData, isLoading, mutate } = useStrapi('attendences', {
+    filters: {
+      lecture: { 
+        [lectureId.length > 15 ? 'documentId' : 'id']: { $eq: lectureId } 
+      },
+      date: { $eq: todayDate },
+      type: { $eq: 'manual' },
+      currentStatus: { $eq: 'absent' }
+    },
+    populate: ['student', 'student.user']
+  });
+
+  const requests = requestData?.data || [];
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-10">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="absolute inset-0 bg-background/90 backdrop-blur-xl"
+        onClick={onClose}
+      />
+      
+      <motion.div initial={{ opacity: 0, scale: 0.9, y: 30 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 30 }}
+        className="relative bg-background border border-foreground/10 rounded-[2.5rem] p-8 md:p-10 w-full max-w-2xl shadow-2xl flex flex-col max-h-[85vh]"
+      >
+        <button onClick={onClose} className="absolute top-6 right-6 p-3 bg-foreground/5 text-foreground/50 hover:text-foreground hover:bg-foreground/10 rounded-full transition-all">
+          <X className="w-6 h-6" />
+        </button>
+
+        <div className="flex items-center gap-4 mb-8">
+          <div className="w-12 h-12 bg-orange-500/10 rounded-2xl flex items-center justify-center text-orange-600">
+            <UserCheck className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-foreground">Manual Requests</h2>
+            <p className="text-foreground/50 text-sm">Students who couldn't scan today's QR code.</p>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+          {isLoading ? (
+            <div className="py-20 flex flex-col items-center justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-orange-500 mb-2" />
+              <p className="text-sm text-foreground/40 font-medium">Fetching requests...</p>
+            </div>
+          ) : requests.length === 0 ? (
+            <div className="py-20 text-center border-2 border-dashed border-foreground/5 rounded-3xl">
+              <Check className="w-10 h-10 text-green-500 mx-auto mb-3 opacity-20" />
+              <p className="text-foreground/50 font-bold italic">All manual requests cleared!</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {requests.map((att: any) => {
+                const student = att.attributes?.student?.data?.attributes || att.student;
+                const user = student?.user?.data?.attributes || student?.user;
+                const attId = att.documentId;
+
+                return (
+                  <motion.div key={attId} layout className="p-4 bg-foreground/[0.02] border border-foreground/5 rounded-2xl flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-blue-500/10 rounded-full flex items-center justify-center text-blue-600 font-bold">
+                        {user?.username?.slice(0,1).toUpperCase() || 'S'}
+                      </div>
+                      <div>
+                        <p className="font-bold text-foreground">{user?.username || 'Unknown Student'}</p>
+                        <p className="text-xs text-foreground/40 font-medium">{student?.studentId || 'ID Pending'}</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={async () => {
+                        await handleApprove(attId);
+                        mutate(); // Refresh list
+                      }}
+                      disabled={isApproving === attId}
+                      className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {isApproving === attId ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                      Approve
+                    </button>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </motion.div>
     </div>
   );
 }
