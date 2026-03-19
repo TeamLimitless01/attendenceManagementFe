@@ -152,7 +152,7 @@ export default function LMSManagerPage() {
 
   const renderTableHead = () => {
     if (activeTab === 'classrooms') return (
-      <tr><th className="px-6 py-4">Classroom Name</th><th className="px-6 py-4">Slug ID</th><th className="px-6 py-4 text-right">Actions</th></tr>
+      <tr><th className="px-6 py-4">Classroom Name</th><th className="px-6 py-4">Location Data</th><th className="px-6 py-4">Radius</th><th className="px-6 py-4 text-right">Actions</th></tr>
     );
     if (activeTab === 'subjects') return (
       <tr><th className="px-6 py-4">Subject details</th><th className="px-6 py-4">Short Code</th><th className="px-6 py-4 text-right">Actions</th></tr>
@@ -182,7 +182,15 @@ export default function LMSManagerPage() {
         <>
           <td className="px-6 py-4 font-medium text-foreground/90">{item.name}</td>
           <td className="px-6 py-4">
-             <span className="px-3 py-1 bg-foreground/5 rounded-md text-xs font-mono">{item.slug}</span>
+             {item.latitude && item.longitude ? (
+                 <div className="text-xs text-foreground/60 flex flex-col gap-0.5">
+                   <span>Lat: {item.latitude}</span>
+                   <span>Lon: {item.longitude}</span>
+                 </div>
+             ) : <span className="text-xs text-foreground/40">Not set</span>}
+          </td>
+          <td className="px-6 py-4">
+             <span className="px-3 py-1 bg-green-500/10 text-green-600 rounded-md text-xs font-bold">{item.radius ? `${item.radius}m` : 'N/A'}</span>
           </td>
         </>
       );
@@ -437,6 +445,47 @@ export default function LMSManagerPage() {
                         placeholder="e.g. Introduction to Physics (CS201)"
                       />
                     </div>
+
+                    {/* Classrooms Form Fields */}
+                    {activeTab === 'classrooms' && (
+                       <div className="space-y-6 pt-4 border-t border-foreground/5">
+                          <div className="grid grid-cols-2 gap-6">
+                            <div>
+                               <label className="block text-sm font-semibold text-foreground/80 mb-2">Latitude</label>
+                               <input type="number" step="any" name="latitude" value={formData.latitude || ''} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-foreground/10 focus:ring-2 focus:ring-blue-500 bg-transparent" placeholder="e.g. 40.7128" />
+                            </div>
+                            <div>
+                               <label className="block text-sm font-semibold text-foreground/80 mb-2">Longitude</label>
+                               <input type="number" step="any" name="longitude" value={formData.longitude || ''} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-foreground/10 focus:ring-2 focus:ring-blue-500 bg-transparent" placeholder="e.g. -74.0060" />
+                            </div>
+                            <div className="col-span-2 flex items-center gap-4">
+                               <button 
+                                 type="button" 
+                                 onClick={() => {
+                                   if (navigator.geolocation) {
+                                     navigator.geolocation.getCurrentPosition((pos) => {
+                                        setFormData((prev: any) => ({ ...prev, latitude: pos.coords.latitude, longitude: pos.coords.longitude }));
+                                        toast.success("Location acquired successfully!");
+                                     }, (err) => {
+                                        toast.error("Failed to get location. Please allow location permissions.");
+                                     });
+                                   } else {
+                                     toast.error("Geolocation is not supported by this browser.");
+                                   }
+                                 }}
+                                 className="px-4 py-2 bg-blue-500/10 text-blue-600 font-semibold rounded-lg hover:bg-blue-600 hover:text-white transition-colors text-sm flex items-center gap-2"
+                               >
+                                 <MapPin className="w-4 h-4" /> Use My Current Location
+                               </button>
+                            </div>
+                            <div className="col-span-2">
+                               <label className="block text-sm font-semibold text-foreground/80 mb-2">Radius (meters)</label>
+                               <input type="number" name="radius" value={formData.radius || ''} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-foreground/10 focus:ring-2 focus:ring-blue-500 bg-transparent" placeholder="e.g. 5" />
+                               <p className="text-xs text-foreground/50 mt-1">Defines the geofence boundary range where attendance can be submitted.</p>
+                            </div>
+                          </div>
+                       </div>
+                    )}
 
                     {/* Class Form Fields */}
                     {activeTab === 'classes' && (
