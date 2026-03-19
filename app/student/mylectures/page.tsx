@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useSession } from 'next-auth/react';
-import { Search, Calendar, BookOpen, Clock, Loader2, MapPin, CheckCircle2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Search, Calendar, BookOpen, Clock, Loader2, MapPin, CheckCircle2, ScanFace } from 'lucide-react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import { useStrapi } from '@/lib/sdk/useStrapi';
@@ -19,6 +20,7 @@ const DAYS = [
 
 export default function StudentMyLecturesPage() {
   const { data: session } = useSession();
+  const router = useRouter();
   //@ts-ignore
   const userId =  session?.user?.id;
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -50,6 +52,19 @@ export default function StudentMyLecturesPage() {
 
   const lectures = lecturesData?.data || [];
 
+  // Fetch the student record for the current user to check faceEmbedding
+  const { data: studentData } = useStrapi(
+    'students',
+    userId
+      ? {
+          filters: { user: { id: { $eq: userId } } },
+          populate: ['user'],
+        }
+      : {},
+    { revalidateOnFocus: false }
+  );
+  const student: any = studentData?.data?.[0] || null;
+
   const checkIsActive = (lecture: any) => {
     // Determine current day 1-7 mapping
     let currentDay = currentTime.getDay(); // 0 = Sunday, 1 = Monday
@@ -78,7 +93,7 @@ export default function StudentMyLecturesPage() {
        <main className="flex-1 py-28 px-4 sm:px-6 lg:px-8">
          <div className="max-w-7xl mx-auto">
            {/* Section Header */}
-           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
+           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
              <div>
                <h1 className="text-4xl font-extrabold text-foreground mb-2 flex items-center gap-3">
                  My Enrolled Lectures
@@ -88,6 +103,32 @@ export default function StudentMyLecturesPage() {
                </p>
              </div>
            </div>
+
+           {/* Face Registration Banner */}
+           {student && !student?.faceEmbedding && (
+             <motion.div
+               initial={{ opacity: 0, y: -10 }}
+               animate={{ opacity: 1, y: 0 }}
+               className="mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5"
+             >
+               <div className="flex items-center gap-3">
+                 <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
+                   <ScanFace className="w-5 h-5 text-amber-500" />
+                 </div>
+                 <div>
+                   <p className="font-bold text-foreground text-sm">Face Not Registered</p>
+                   <p className="text-foreground/60 text-xs mt-0.5">Register your face to enable biometric attendance submission.</p>
+                 </div>
+               </div>
+               <button
+                 onClick={() => router.push(`/face-recognition/register/${student.documentId}`)}
+                 className="shrink-0 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-sm transition-all shadow hover:shadow-md hover:-translate-y-0.5 flex items-center gap-2"
+               >
+                 <ScanFace className="w-4 h-4" />
+                 Register Face
+               </button>
+             </motion.div>
+           )}
 
            {/* Lectures List */}
            <div className="space-y-6">

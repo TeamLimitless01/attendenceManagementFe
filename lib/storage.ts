@@ -1,3 +1,4 @@
+import { strapi } from './sdk/sdk';
 import type { Student, LogEntry, Config } from './types';
 
 const STUDENTS_KEY = 'fa_students';
@@ -9,8 +10,24 @@ export function loadStudents(): Student[] {
   return JSON.parse(localStorage.getItem(STUDENTS_KEY) || '[]');
 }
 
-export function saveStudents(students: Student[]): void {
-  localStorage.setItem(STUDENTS_KEY, JSON.stringify(students));
+export async function saveStudents(students: Student[]): Promise<void> {
+  // localStorage.setItem(STUDENTS_KEY, JSON.stringify(students));
+  try {
+    console.log("gello", {
+      students
+    })
+    const res = await strapi.update("students", `${students[0].roll}`, {
+      faceEmbedding: students[0].descriptor,
+      photo: students[0].photo,
+
+    })
+    if (!res.ok) {
+      throw new Error('Failed to save students');
+    }
+  } catch (error) {
+    console.error('Error saving students:', error);
+  }
+
 }
 
 export function loadLogs(): LogEntry[] {

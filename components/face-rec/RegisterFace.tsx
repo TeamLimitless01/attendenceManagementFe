@@ -24,7 +24,7 @@ interface ModalState {
   alreadyMarked?: boolean;
 }
 
-export default function FaceAttendance({name,roll}: {name:string,roll:string}) {
+export default function RegisterFace({ studentId }: { studentId: string }) {
   // ── Data State ──
   const [students, setStudents] = useState<Student[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -41,7 +41,7 @@ export default function FaceAttendance({name,roll}: {name:string,roll:string}) {
   const [modal, setModal] = useState<ModalState>({ open: false, type: null });
   const [countdown, setCountdown] = useState(MODAL_AUTO_CLOSE);
 
- 
+
 
   // ── Enroll State ──
   const [enrollActive, setEnrollActive] = useState(false);
@@ -51,10 +51,8 @@ export default function FaceAttendance({name,roll}: {name:string,roll:string}) {
   const [capturedDesc, setCapturedDesc] = useState<number[] | null>(null);
   const [snapSrc, setSnapSrc] = useState('');
   const [showSnap, setShowSnap] = useState(false);
-  const [iName, setIName] = useState(name);
-  const [iRoll, setIRoll] = useState(roll);
 
- 
+
 
   // ── Refs ──
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -87,7 +85,7 @@ export default function FaceAttendance({name,roll}: {name:string,roll:string}) {
     setStudents(storedStudents);
     setLogs(storedLogs);
     setToday(todayDate);
-  
+
 
     loadModels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -125,7 +123,7 @@ export default function FaceAttendance({name,roll}: {name:string,roll:string}) {
         setLoaderPct(pct);
         await window.faceapi.nets[net].loadFromUri(MODEL_URL);
       }
-    
+
       setLoaderPct(100);
       await new Promise(r => setTimeout(r, 350));
       setLoaderVisible(false);
@@ -157,14 +155,14 @@ export default function FaceAttendance({name,roll}: {name:string,roll:string}) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
-     
- 
+
+
       startDetection();
       showToast('Attendance camera started');
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       showToast('Camera error: ' + msg);
-     
+
     }
   }, [modelsReady, showToast]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -179,12 +177,12 @@ export default function FaceAttendance({name,roll}: {name:string,roll:string}) {
       const ctx = overlayRef.current.getContext('2d');
       ctx?.clearRect(0, 0, overlayRef.current.width, overlayRef.current.height);
     }
-    
+
   }, []);
 
   // ── Detection Loop ──
   function startDetection() {
- 
+
 
     async function loop() {
       if (!mediaStreamRef.current) return;
@@ -207,7 +205,7 @@ export default function FaceAttendance({name,roll}: {name:string,roll:string}) {
           .withFaceLandmarks()
           .withFaceDescriptors();
 
-       
+
 
         if (dets.length > 0 && !processingFaceRef.current) {
           const det = dets[0];
@@ -220,7 +218,7 @@ export default function FaceAttendance({name,roll}: {name:string,roll:string}) {
           ctx.strokeStyle = color;
           ctx.lineWidth = 3;
           ctx.strokeRect(box.x, box.y, box.width, box.height);
-          const lbl = known ? '✓ ' + match!.student.name : '? Unknown';
+          const lbl = known ? '✓ ' + match!.student.roll : '? Unknown';
           ctx.font = 'bold 13px Segoe UI, sans-serif';
           const tw = ctx.measureText(lbl).width + 14;
           ctx.fillStyle = color;
@@ -244,7 +242,7 @@ export default function FaceAttendance({name,roll}: {name:string,roll:string}) {
                 ...currentLogs,
                 {
                   sid: match.student.id,
-                  name: match.student.name,
+                  name: match.student.roll,
                   roll: match.student.roll,
                   date: currentToday,
                   time: new Date().toLocaleTimeString(),
@@ -410,26 +408,36 @@ export default function FaceAttendance({name,roll}: {name:string,roll:string}) {
     setShowSnap(false);
     setEnrollMsg('');
   }
+  const [loading, setLoading] = useState(false)
+  async function enrollStudent() {
+    try {
+      setLoading(true)
+      // const name = iName.trim();
+      const roll = studentId.trim();
+      //  if (!name) { setEnrollMsg('❌ Enter student name.'); return; }
+      if (!roll) { setEnrollMsg('❌ Enter roll number.'); return; }
+      if (!capturedDesc) { setEnrollMsg('❌ Capture face first.'); return; }
+      if (students.find(s => s.roll === roll)) { setEnrollMsg('❌ Roll number already enrolled.'); return; }
 
-  function enrollStudent() {
-    const name = iName.trim();
-    const roll = iRoll.trim();
-    if (!name) { setEnrollMsg('❌ Enter student name.'); return; }
-    if (!roll) { setEnrollMsg('❌ Enter roll number.'); return; }
-    if (!capturedDesc) { setEnrollMsg('❌ Capture face first.'); return; }
-    if (students.find(s => s.roll === roll)) { setEnrollMsg('❌ Roll number already enrolled.'); return; }
-
-    const updated = [...students, { id: Date.now().toString(), name, roll, descriptor: capturedDesc, photo: snapSrc }];
-    setStudents(updated);
-    saveStudents(updated);
-    setIName(''); setIRoll(''); retakeFace();
-    setEnrollMsg('✅ ' + name + ' enrolled!');
-    showToast(name + ' enrolled');
+      const updated = [...students, { id: Date.now().toString(), roll, descriptor: capturedDesc, photo: snapSrc }];
+      setStudents(updated);
+      await saveStudents(updated);
+      //setIName(''); setIRoll(''); 
+      retakeFace();
+      setEnrollMsg('✅ ' + name + ' enrolled!');
+      showToast(name + ' enrolled');
+    } catch (error) {
+      showToast("Something went wrong")
+      console.log(error)
+    }
+    finally {
+      setLoading(false)
+    }
   }
 
-  
- 
- 
+
+
+
 
   // ── Computed ──
   const todayLogs = logs.filter(l => l.date === today);
@@ -463,9 +471,9 @@ export default function FaceAttendance({name,roll}: {name:string,roll:string}) {
         <div>
           {/* Enroll Student */}
           <div className="card">
-            <div className="card-header">➕ Enroll New Student</div>
+            <div className="card-header">Register Your Face</div>
             <div className="enroll-form">
-           {/*    <div className="fg"><label>Full Name</label><input value={iName} onChange={e => setIName(e.target.value)} placeholder="e.g. Rahul Sharma" /></div>
+              {/*    <div className="fg"><label>Full Name</label><input value={iName} onChange={e => setIName(e.target.value)} placeholder="e.g. Rahul Sharma" /></div>
               <div className="fg"><label>Roll Number</label><input value={iRoll} onChange={e => setIRoll(e.target.value)} placeholder="e.g. 2024001" /></div> */}
 
               <div className="enroll-cam-box">
@@ -496,7 +504,7 @@ export default function FaceAttendance({name,roll}: {name:string,roll:string}) {
                 <button className="btn-gray" onClick={retakeFace} style={{ width: '100%' }}>↺ Retake Photo</button>
               )}
 
-              <button className="btn-green" style={{ width: '100%', marginTop: '2px' }} onClick={enrollStudent}>✔ Enroll Student</button>
+              <button className="btn-green" style={{ width: '100%', marginTop: '2px' }} onClick={enrollStudent}>{loading ? "Enrolling..." : "✔ Enroll Student"}</button>
               <div className="enroll-status">{enrollMsg}</div>
             </div>
           </div>
