@@ -41,6 +41,7 @@ const Header = () => {
 
   const filteredNavLinks = navLinks.filter((link) => {
     if (!data) return false;
+    //@ts-ignore
     if (link.role.includes(data?.user?.role as string)) return true;
     return false;
   });
@@ -101,7 +102,7 @@ const Header = () => {
             className="md:hidden bg-background border-b border-foreground/10 overflow-hidden"
           >
             <div className="px-4 py-6 space-y-4">
-              {navLinks.map((link) => (
+              {filteredNavLinks.map((link) => (
                 <Link 
                   key={link.name} 
                   href={link.href} 
@@ -131,13 +132,13 @@ const Header = () => {
                   >
                     Sign In
                   </Link>
-                  <Link 
+                  {/* <Link 
                     href="/register" 
                     onClick={() => setMobileMenuOpen(false)}
                     className="block px-3 py-2 bg-blue-600 text-white rounded-md text-base font-medium hover:bg-blue-700 transition-colors mt-2 text-center"
                   >
                     Get Started
-                  </Link>
+                  </Link> */}
                 </>
               )}
             </div>
