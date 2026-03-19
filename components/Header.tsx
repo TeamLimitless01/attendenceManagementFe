@@ -25,6 +25,8 @@ const Header = () => {
     { name: 'Teachers', href: '/admin/users',role:['admin']},
     { name: 'Students', href: '/admin/users/students',role:['admin']},
     { name: 'My lectures', href: '/teacher/mylectures',role:['teacher']},
+    { name: 'My lectures', href: '/student/mylectures',role:['student']},
+
     { name: 'Subject & Class Management', href: '/admin/lms',role:['admin']},
     {
       name:'Attendence',href:'/student/attendence',role:['student']
