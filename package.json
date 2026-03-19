@@ -21,7 +21,8 @@
     "react-qr-reader": "^3.0.0-beta-1",
     "react-toastify": "^11.0.5",
     "strapi-sdk-js": "^3.0.0",
-    "swr": "^2.4.0"
+    "swr": "^2.4.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
