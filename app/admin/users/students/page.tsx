@@ -73,6 +73,7 @@ export default function AdminStudentsPage() {
         roll_number: formData.roll_number,
         user: userData.id || userData.documentId,
         class: selectedClassId,
+        name: formData.username,
       });
      
       toast.success("Student successfully added to class!");
