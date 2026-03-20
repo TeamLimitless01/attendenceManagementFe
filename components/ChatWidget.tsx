@@ -114,15 +114,15 @@ const ChatWidget = () => {
         whileHover={{ scale: 1.1, rotate: 5 }}
         whileTap={{ scale: 0.9 }}
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 z-[60] w-16 h-16 bg-blue-600 text-white rounded-[2rem] shadow-[0_12px_40px_-8px_rgba(37,99,235,0.4)] flex items-center justify-center border border-blue-400/20 active:scale-95 transition-all"
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[60] w-14 h-14 sm:w-16 sm:h-16 bg-blue-600 text-white rounded-2xl sm:rounded-[2rem] shadow-[0_12px_40px_-8px_rgba(37,99,235,0.4)] flex items-center justify-center border border-blue-400/20 active:scale-95 transition-all"
         style={{ display: isOpen ? 'none' : 'flex' }}
       >
         <div className="relative">
-          <MessageCircle className="w-8 h-8" />
+          <MessageCircle className="w-7 h-7 sm:w-8 sm:h-8" />
           <motion.div 
             animate={{ scale: [1, 1.2, 1] }} 
             transition={{ repeat: Infinity, duration: 2 }}
-            className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-400 rounded-full border-2 border-blue-600" 
+            className="absolute -top-1 -right-1 w-3 h-3 sm:w-3.5 sm:h-3.5 bg-emerald-400 rounded-full border-2 border-blue-600" 
           />
         </div>
       </motion.button>
@@ -133,64 +133,67 @@ const ChatWidget = () => {
             initial={{ opacity: 0, y: 20, scale: 0.95, transformOrigin: 'bottom right' }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className={`fixed bottom-6 right-6 z-[70] bg-white rounded-[2.5rem] shadow-[0_32px_120px_-20px_rgba(0,0,0,0.18)] border border-slate-100 overflow-hidden flex flex-col ${isExpanded ? 'w-[calc(100vw-48px)] h-[calc(100vh-120px)] max-w-4xl max-h-[800px]' : 'w-[400px] h-[600px] max-h-[80vh]'} transition-all duration-500`}
+            className={`fixed inset-x-0 bottom-0 sm:inset-auto sm:bottom-6 sm:right-6 z-[70] bg-white sm:rounded-[2.5rem] shadow-[0_32px_120px_-20px_rgba(0,0,0,0.18)] border-t sm:border border-slate-100 overflow-hidden flex flex-col 
+              ${isExpanded 
+                ? 'w-full h-[100dvh] sm:w-[calc(100vw-48px)] sm:h-[calc(100vh-120px)] sm:max-w-4xl sm:max-h-[800px]' 
+                : 'w-full h-[100dvh] sm:w-[400px] sm:h-[600px] sm:max-h-[80vh]'} 
+              transition-all duration-500`}
           >
             {/* Header */}
-            <div className="p-6 bg-gradient-to-r from-blue-700 to-indigo-800 text-white flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20">
-                  <Bot className="w-7 h-7 text-white" />
+            <div className="p-4 sm:p-6 bg-gradient-to-r from-blue-700 to-indigo-800 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/10 backdrop-blur-md rounded-xl sm:rounded-2xl flex items-center justify-center border border-white/20">
+                  <Bot className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
                 </div>
                 <div>
-                   <h3 className="font-black text-xl tracking-tight leading-none group flex items-center gap-2">
-                     AMS Assistant <Sparkles className="w-3.5 h-3.5 text-blue-300 animate-pulse" />
+                   <h3 className="font-black text-lg sm:text-xl tracking-tight leading-none group flex items-center gap-2">
+                     AMS Assistant <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-300 animate-pulse" />
                    </h3>
-                   <div className="flex items-center gap-1.5 mt-2">
-                     <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                     <span className="text-[10px] font-bold uppercase tracking-widest text-blue-200">Your Personal Guide</span>
+                   <div className="flex items-center gap-1.5 mt-1 sm:mt-2">
+                     <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-emerald-400 rounded-full animate-pulse" />
+                     <span className="text-[8px] sm:text-[10px] font-bold uppercase tracking-widest text-blue-200">Your Personal Guide</span>
                    </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2">
                  <button 
                    onClick={() => setIsExpanded(!isExpanded)}
-                   className="p-2.5 rounded-xl hover:bg-white/10 transition-colors hidden sm:block"
+                   className="p-2 rounded-lg sm:p-2.5 sm:rounded-xl hover:bg-white/10 transition-colors hidden sm:block"
                  >
                    {isExpanded ? <Minimize2 className="w-5 h-5 text-blue-100" /> : <Maximize2 className="w-5 h-5 text-blue-100" />}
                  </button>
                  <button 
                    onClick={() => setIsOpen(false)}
-                   className="p-2.5 rounded-xl hover:bg-white/10 transition-colors"
+                   className="p-2 rounded-lg sm:p-2.5 sm:rounded-xl hover:bg-white/10 transition-colors"
                  >
-                   <ChevronDown className="w-6 h-6 text-blue-100" />
+                   <ChevronDown className="w-6 h-6 text-blue-100 transition-transform sm:rotate-0" />
                  </button>
               </div>
             </div>
 
             {/* Chat Body */}
-            <div data-lenis-prevent className="flex-1 overflow-y-auto p-6 bg-slate-50/50 space-y-6">
+            <div data-lenis-prevent className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50 space-y-4 sm:space-y-6">
               {messages.length === 0 && (
-                <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-4">
-                  <div className="p-5 bg-blue-50 rounded-[2.5rem] border-2 border-blue-100/50">
-                    <Sparkles className="w-10 h-10 text-blue-600" />
+                <div className="h-full flex flex-col items-center justify-center text-center p-4 sm:p-8 space-y-4">
+                  <div className="p-4 sm:p-5 bg-blue-50 rounded-[2rem] sm:rounded-[2.5rem] border-2 border-blue-100/50">
+                    <Sparkles className="w-8 h-8 sm:w-10 sm:h-10 text-blue-600" />
                   </div>
                   <div>
-                    <h4 className="font-black text-xl text-slate-800 tracking-tight">How can AMS help you today?</h4>
-                    <p className="text-slate-500 font-medium text-sm mt-2 max-w-[240px] mx-auto">
-                      Ask me anything about facial recognition, geo-tracking, or managing your institution.
+                    <h4 className="font-black text-lg sm:text-xl text-slate-800 tracking-tight">How can AMS help?</h4>
+                    <p className="text-slate-500 font-medium text-xs sm:text-sm mt-2 max-w-[240px] mx-auto">
+                      Ask me anything about facial recognition or institution management.
                     </p>
                   </div>
-                  <div className="grid grid-cols-1 gap-2 w-full mt-4">
+                  <div className="grid grid-cols-1 gap-2 w-full mt-2 sm:mt-4">
                      {[
                        "Explain how Face ID works",
                        "How to set up geo-fencing?",
-                       "Register a new studentId",
                        "Show attendance analytics"
                      ].map((suggestion) => (
                        <button
                          key={suggestion}
                          onClick={() => setInput(suggestion)}
-                         className="px-4 py-3 bg-white border border-slate-100 rounded-2xl text-xs font-bold text-slate-600 hover:border-blue-300 hover:text-blue-600 transition-all text-left shadow-sm"
+                         className="px-4 py-2.5 sm:py-3 bg-white border border-slate-100 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-bold text-slate-600 hover:border-blue-300 hover:text-blue-600 transition-all text-left shadow-sm"
                        >
                          {suggestion}
                        </button>
@@ -204,14 +207,14 @@ const ChatWidget = () => {
                   key={i}
                   initial={{ opacity: 0, y: 10, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} items-end gap-3`}
+                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} items-end gap-2 sm:gap-3`}
                 >
                   {message.role === 'assistant' && (
-                    <div className="w-8 h-8 rounded-xl bg-blue-600 flex-shrink-0 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
-                       <Bot className="w-4 h-4" />
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-blue-600 flex-shrink-0 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+                       <Bot className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </div>
                   )}
-                  <div className={`max-w-[85%] p-4 rounded-[2rem] text-sm font-medium leading-relaxed ${
+                  <div className={`max-w-[90%] sm:max-w-[85%] p-3 sm:p-4 rounded-2xl sm:rounded-[2rem] text-xs sm:text-sm font-medium leading-relaxed ${
                     message.role === 'user' 
                     ? 'bg-blue-600 text-white rounded-br-lg shadow-xl shadow-blue-600/10' 
                     : 'bg-white text-slate-700 border border-slate-100 rounded-bl-lg shadow-sm'
@@ -235,22 +238,22 @@ const ChatWidget = () => {
                     )}
                   </div>
                   {message.role === 'user' && (
-                     <div className="w-8 h-8 rounded-xl bg-slate-200 flex-shrink-0 flex items-center justify-center text-slate-500 border border-white">
-                        <User className="w-4 h-4" />
+                     <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-slate-200 flex-shrink-0 flex items-center justify-center text-slate-500 border border-white">
+                        <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                      </div>
                   )}
                 </motion.div>
               ))}
               
               {isTyping && (
-                <div className="flex justify-start items-center gap-3">
-                   <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white">
-                       <Bot className="w-4 h-4" />
+                <div className="flex justify-start items-center gap-2 sm:gap-3">
+                   <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-blue-600 flex items-center justify-center text-white">
+                       <Bot className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </div>
-                   <div className="bg-white px-4 py-3 rounded-[2rem] rounded-bl-lg border border-slate-100 shadow-sm flex items-center gap-1.5">
-                      <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1 }} className="w-1.5 h-1.5 bg-blue-600 rounded-full" />
-                      <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-1.5 h-1.5 bg-blue-600 rounded-full" />
-                      <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-1.5 h-1.5 bg-blue-600 rounded-full" />
+                   <div className="bg-white px-3 sm:px-4 py-2 sm:py-3 rounded-2xl sm:rounded-[2rem] rounded-bl-lg border border-slate-100 shadow-sm flex items-center gap-1.5">
+                      <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1 }} className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-blue-600 rounded-full" />
+                      <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-blue-600 rounded-full" />
+                      <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-blue-600 rounded-full" />
                    </div>
                 </div>
               )}
@@ -258,7 +261,7 @@ const ChatWidget = () => {
             </div>
 
             {/* Input Footer */}
-            <div className="p-6 bg-white border-t border-slate-100">
+            <div className="p-4 sm:p-6 bg-white border-t border-slate-100 pb-safe">
                <div className="relative group">
                   <input 
                     type="text"
@@ -266,14 +269,14 @@ const ChatWidget = () => {
                     onChange={(e) => setInput(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleSend()}
                     placeholder="Ask AMS Assistant..."
-                    className="w-full h-14 pl-6 pr-14 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600/50 transition-all group-hover:bg-slate-100"
+                    className="w-full h-12 sm:h-14 pl-4 sm:pl-6 pr-12 sm:pr-14 bg-slate-50 border border-slate-100 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-600/50 transition-all group-hover:bg-slate-100"
                   />
                   <button 
                     onClick={handleSend}
                     disabled={!input.trim() || isTyping}
-                    className="absolute right-2 top-2 w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center hover:bg-blue-700 transition-all active:scale-90 disabled:opacity-30 disabled:grayscale shadow-lg shadow-blue-500/20"
+                    className="absolute right-1.5 top-1.5 sm:right-2 sm:top-2 w-9 h-9 sm:w-10 sm:h-10 bg-blue-600 text-white rounded-lg sm:rounded-xl flex items-center justify-center hover:bg-blue-700 transition-all active:scale-90 disabled:opacity-30 disabled:grayscale shadow-lg shadow-blue-500/20"
                   >
-                    {isTyping ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                    {isTyping ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : <Send className="w-4 h-4 sm:w-5 sm:h-5" />}
                   </button>
                </div>
                <div className="mt-3 text-center">

@@ -128,13 +128,13 @@ const Header = () => {
                   >
                     Sign In
                   </Link>
-                  <Link 
+                  {/* <Link 
                     href="/register" 
                     onClick={() => setMobileMenuOpen(false)}
                     className="block px-3 py-3 bg-blue-600 text-white rounded-xl text-base font-bold hover:bg-blue-700 transition-colors mt-2 text-center shadow-lg shadow-blue-500/10"
                   >
                     Get Started
-                  </Link>
+                  </Link> */}
                 </>
               )}
             </div>
