@@ -30,14 +30,11 @@ AMS Features:
 - Modern UI: High-performance, animated interface built with Next.js, Tailwind CSS, and Framer Motion.
 
 Your Goal: 
-Help users navigate AMS, explain its features, and provide professional consultation on how to best use the system for their institutions or teams. Keep your tone premium, clear, and supportive.`
+Help users navigate AMS, explain its features, and provide professional consultation on how to best use the system for their institutions or teams. Keep your tone premium, clear, and supportive. keep your response short and concise.`
           },
           ...messages
         ],
         model: 'sarvam-105b',
-        temperature: 0.7,
-        top_p: 1,
-        max_tokens: 1500,
         stream: true, // Enable streaming
       }),
     });
