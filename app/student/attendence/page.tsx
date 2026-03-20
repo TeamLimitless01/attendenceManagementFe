@@ -46,22 +46,21 @@ export default function StudentAttendanceHub() {
     filters: userId ? { user: { id: { $eq: userId } } } : undefined,
   });
   const student = studentData?.data?.[0] as any;
+  const studentDocId = student?.documentId;
   const studentId = student?.id;
 
   // 2. Fetch all lectures student is enrolled in
-  // We populate classroom to get its location/details if needed for UI
   const { data: lecturesData, isLoading: lecturesLoading } = useStrapi('lectures', {
-    filters: studentId ? {
-      students: { id: { $eq: studentId } }
+    filters: studentDocId ? {
+      students: { documentId: { $eq: studentDocId } }
     } : undefined,
     populate: ['class', 'subject', 'teacher', 'teacher.user', 'classroom']
   });
 
   // 3. Fetch all attendance records for this student
-  // We need this to determine which dates the student was present
   const { data: attendanceData, isLoading: attendanceLoading } = useStrapi('attendences', {
-    filters: studentId ? {
-      student: { id: { $eq: studentId } }
+    filters: studentDocId ? {
+      student: { documentId: { $eq: studentDocId } }
     } : undefined,
     populate: ['lecture']
   });
@@ -75,11 +74,12 @@ export default function StudentAttendanceHub() {
   const lectureStats = useMemo(() => {
     return lectures.map((lectureBase: any) => {
       const lecture = lectureBase.attributes || lectureBase;
-      const lId = lectureBase.id || lectureBase.documentId;
+      const lId = lectureBase.documentId || String(lectureBase.id);
       
       const lectureAttendances = attendances.filter((att: any) => {
-        const attLecture = att.attributes?.lecture?.data || att.lecture;
-        const attLId = attLecture?.documentId || attLecture?.id;
+        const item = att.attributes || att;
+        const attLecture = item.lecture?.data || item.lecture;
+        const attLId = attLecture?.documentId || String(attLecture?.id || attLecture);
         return attLId === lId;
       });
 
