@@ -1,6 +1,7 @@
 // Types for the face attendance system
 export interface Student {
   id: string;
+  name?: string;
   roll: string;
   descriptor: number[];
   photo: string;
