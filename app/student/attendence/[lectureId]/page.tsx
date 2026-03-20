@@ -1,10 +1,10 @@
 "use client"
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { CheckCircle2, Loader2, MapPin, Clock, Calendar, ShieldCheck, ArrowLeft, QrCode, XCircle, RefreshCcw } from 'lucide-react';
+import { CheckCircle2, Loader2, MapPin, Clock, Calendar, ShieldCheck, ArrowLeft, QrCode, XCircle, RefreshCcw, ScanFace, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { strapi } from '@/lib/sdk/sdk';
 import { useStrapi } from '@/lib/sdk/useStrapi';
@@ -72,42 +72,30 @@ function QrScannerWidget({ onScanSuccess }: { onScanSuccess: (text: string) => v
         const onSuccess = async (decodedText: string) => {
           if (isProcessing.current) return;
           isProcessing.current = true;
-
           try {
-            // Stop scanner first to release hardware and prevent multiple hits
-            if (instance && instance.isScanning) {
-              await instance.stop();
-            }
+            if (instance && instance.isScanning) await instance.stop();
             onScanSuccess(decodedText);
           } catch (err) {
             console.error("Failed to stop scanner after success:", err);
-            // Still pass result up since we got the code
             onScanSuccess(decodedText);
           }
         };
 
-        const onFrameError = () => {};
-
         try {
-          // Prefer environment (rear) camera
           await instance.start(
-            { facingMode: 'environment' }, 
-            { fps: 10, qrbox: { width: 240, height: 240 } }, 
-            onSuccess, 
-            onFrameError
+            { facingMode: 'environment' },
+            { fps: 10, qrbox: { width: 240, height: 240 } },
+            onSuccess, () => {}
           );
         } catch {
-          // Fallback to any camera (webcam)
           await instance.start(
-            { facingMode: 'user' }, 
-            { fps: 10, qrbox: { width: 240, height: 240 } }, 
-            onSuccess, 
-            onFrameError
+            { facingMode: 'user' },
+            { fps: 10, qrbox: { width: 240, height: 240 } },
+            onSuccess, () => {}
           );
         }
         setIsStarting(false);
       } catch (err: any) {
-        console.error("Scanner startup error:", err);
         const msg = (err?.message || '').toLowerCase();
         if (msg.includes('permission') || msg.includes('denied') || msg.includes('notallowed')) {
           setCameraError('Camera permission denied. Please check your browser settings.');
@@ -121,9 +109,7 @@ function QrScannerWidget({ onScanSuccess }: { onScanSuccess: (text: string) => v
     };
 
     startScanner();
-
     return () => {
-      // Cleanup: stop if it was still running
       if (scannerRef.current && scannerRef.current.isScanning) {
         scannerRef.current.stop().catch(() => {});
       }
@@ -159,6 +145,228 @@ function QrScannerWidget({ onScanSuccess }: { onScanSuccess: (text: string) => v
   );
 }
 
+// ── Inline Face Verification Step ─────────────────────────────────────────────
+const FACE_MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/model/';
+
+declare global {
+  interface Window { faceapi: any; }
+}
+
+function FaceVerifyStep({
+  studentDescriptor,
+  onSuccess,
+  onFailure,
+}: {
+  studentDescriptor: number[];
+  onSuccess: () => void;
+  onFailure: (reason: string) => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const overlayRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const detectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const doneRef = useRef(false);
+
+  const [status, setStatus] = useState<'loading-models' | 'ready' | 'scanning' | 'matched' | 'failed'>('loading-models');
+  const [statusMsg, setStatusMsg] = useState('Loading AI models…');
+  const [camActive, setCamActive] = useState(false);
+  const [attempts, setAttempts] = useState(0);
+  const MAX_ATTEMPTS = 3;
+
+  // Load models + auto-start camera
+  useEffect(() => {
+    let cancelled = false;
+
+    async function init() {
+      try {
+        // Load face-api.js if not already loaded
+        if (!window.faceapi) {
+          await new Promise<void>((resolve, reject) => {
+            const existing = document.querySelector('script[data-faceapi]');
+            if (existing) { resolve(); return; }
+            const s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';
+            s.setAttribute('data-faceapi', '1');
+            s.onload = () => resolve();
+            s.onerror = reject;
+            document.head.appendChild(s);
+          });
+        }
+
+        if (cancelled) return;
+        setStatusMsg('Loading face detector…');
+        await window.faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL);
+        setStatusMsg('Loading landmarks…');
+        await window.faceapi.nets.faceLandmark68Net.loadFromUri(FACE_MODEL_URL);
+        setStatusMsg('Loading recognition model…');
+        await window.faceapi.nets.faceRecognitionNet.loadFromUri(FACE_MODEL_URL);
+
+        if (cancelled) return;
+        setStatus('ready');
+        setStatusMsg('Models ready');
+        startCamera();
+      } catch (err: any) {
+        if (!cancelled) {
+          setStatus('failed');
+          setStatusMsg('Failed to load AI models: ' + err?.message);
+        }
+      }
+    }
+
+    init();
+    return () => {
+      cancelled = true;
+      stopCamera();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function stopCamera() {
+    if (detectTimerRef.current) { clearTimeout(detectTimerRef.current); detectTimerRef.current = null; }
+    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setCamActive(false);
+  }
+
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setCamActive(true);
+      setStatus('scanning');
+      setStatusMsg('Look straight at the camera…');
+      runDetectionLoop();
+    } catch (e: any) {
+      setStatus('failed');
+      setStatusMsg('Camera error: ' + e?.message);
+    }
+  }
+
+  function runDetectionLoop() {
+    async function loop() {
+      if (doneRef.current) return;
+      const video = videoRef.current;
+      const overlay = overlayRef.current;
+      if (!video || !overlay || !streamRef.current) return;
+
+      if (video.videoWidth > 0) {
+        overlay.width = video.videoWidth;
+        overlay.height = video.videoHeight;
+      }
+      const ctx = overlay.getContext('2d')!;
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+      try {
+        const det = await window.faceapi
+          .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.45 }))
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+
+        if (det) {
+          const dist = window.faceapi.euclideanDistance(det.descriptor, new Float32Array(studentDescriptor));
+          const box = det.detection.box;
+
+          const matched = dist < 0.5;
+          const color = matched ? '#34a853' : '#ea4335';
+
+          // Draw box
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 3;
+          ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+          const lbl = matched ? `✓ Verified (${Math.round((1 - dist) * 100)}%)` : `✗ No match`;
+          ctx.font = 'bold 13px sans-serif';
+          const tw = ctx.measureText(lbl).width + 14;
+          ctx.fillStyle = color;
+          ctx.fillRect(box.x, box.y - 24, tw, 22);
+          ctx.fillStyle = '#fff';
+          ctx.fillText(lbl, box.x + 6, box.y - 7);
+
+          if (matched) {
+            doneRef.current = true;
+            setStatus('matched');
+            setStatusMsg('Face verified! ✓');
+            stopCamera();
+            setTimeout(() => onSuccess(), 800);
+            return;
+          } else {
+            // Count failed attempts
+            setAttempts(prev => {
+              const next = prev + 1;
+              if (next >= MAX_ATTEMPTS) {
+                doneRef.current = true;
+                setStatus('failed');
+                setStatusMsg('Face did not match after multiple attempts.');
+                stopCamera();
+                setTimeout(() => onFailure('Face did not match. Attendance not recorded.'), 800);
+              } else {
+                setStatusMsg(`Face did not match. Attempt ${next}/${MAX_ATTEMPTS}…`);
+              }
+              return next;
+            });
+          }
+        } else {
+          setStatusMsg('No face detected — look straight at the camera…');
+        }
+      } catch { /* ignore detection errors */ }
+
+      detectTimerRef.current = setTimeout(loop, 600);
+    }
+    loop();
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-4 w-full">
+      {/* Status badge */}
+      <div className={`w-full px-4 py-3 rounded-2xl flex items-center gap-3 text-sm font-semibold
+        ${status === 'matched' ? 'bg-green-500/10 text-green-600 border border-green-500/20' :
+          status === 'failed' ? 'bg-red-500/10 text-red-600 border border-red-500/20' :
+          'bg-blue-500/10 text-blue-600 border border-blue-500/20'}`}>
+        {status === 'loading-models' && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}
+        {status === 'scanning' && <ScanFace className="w-4 h-4 shrink-0 animate-pulse" />}
+        {status === 'matched' && <CheckCircle2 className="w-4 h-4 shrink-0" />}
+        {status === 'failed' && <AlertTriangle className="w-4 h-4 shrink-0" />}
+        {status === 'ready' && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}
+        <span>{statusMsg}</span>
+      </div>
+
+      {/* Attempt indicator */}
+      {status === 'scanning' && (
+        <div className="flex gap-1.5 self-start">
+          {Array.from({ length: MAX_ATTEMPTS }).map((_, i) => (
+            <div key={i} className={`w-2 h-2 rounded-full transition-colors ${i < attempts ? 'bg-red-500' : 'bg-foreground/20'}`} />
+          ))}
+        </div>
+      )}
+
+      {/* Camera view */}
+      <div className={`relative w-full rounded-2xl overflow-hidden bg-black aspect-video
+        ${status === 'matched' ? 'ring-2 ring-green-500' :
+          status === 'failed' ? 'ring-2 ring-red-500' :
+          camActive ? 'ring-2 ring-blue-500/50' : ''}`}>
+        {!camActive && status !== 'failed' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white/40">
+            <ScanFace className="w-12 h-12" />
+            <p className="text-sm">{status === 'loading-models' ? 'Loading models…' : 'Starting camera…'}</p>
+          </div>
+        )}
+        <video ref={videoRef} autoPlay muted playsInline
+          className="w-full h-full object-cover"
+          style={{ display: camActive ? 'block' : 'none' }} />
+        <canvas ref={overlayRef}
+          className="absolute inset-0 w-full h-full"
+          style={{ display: camActive ? 'block' : 'none' }} />
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function SubmitAttendancePage() {
   const { data: session } = useSession();
@@ -169,16 +377,19 @@ export default function SubmitAttendancePage() {
   const lectureId = params.lectureId as string;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [scanState, setScanState] = useState<'idle' | 'scanning' | 'verifying' | 'error'>('idle');
+  const [scanState, setScanState] = useState<'idle' | 'scanning' | 'verifying' | 'face-verify' | 'face-failed' | 'error'>('idle');
   const [scanError, setScanError] = useState('');
 
   const d = new Date();
-  const todayDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; // Robust local YYYY-MM-DD
+  const todayDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
+  // Fetch current student (with faceEmbedding)
   const { data: studentsData, isLoading: isLoadingStudent } = useStrapi('students', {
     filters: userId ? { user: { id: { $eq: userId } } } : undefined,
+    populate: ['user'],
   });
   const student = studentsData?.data?.[0] as any;
+  const faceEmbedding: number[] | null = Array.isArray(student?.faceEmbedding) ? student.faceEmbedding : null;
 
   const { data: lectureData, isLoading: isLoadingLecture } = useStrapi(`lectures/${lectureId}`, { populate: '*' });
   const lectureAttr = (lectureData as any)?.data?.attributes || (lectureData as any)?.data;
@@ -210,6 +421,7 @@ export default function SubmitAttendancePage() {
     );
   }, [classroomAttr]);
 
+  // ── Step 1: QR Scanned ─────────────────────────────────────────────────────
   const handleQrScanned = async (rawToken: string) => {
     setScanState('verifying');
     setScanError('');
@@ -227,6 +439,13 @@ export default function SubmitAttendancePage() {
       return;
     }
 
+    // QR valid → move to face verification
+    setScanState('face-verify');
+  };
+
+  // ── Step 2: Face Verified ──────────────────────────────────────────────────
+  const handleFaceSuccess = async () => {
+    if (!student) return;
     setIsSubmitting(true);
     try {
       const studentId = student.documentId || student.id;
@@ -239,13 +458,21 @@ export default function SubmitAttendancePage() {
         type: 'auto',
         currentStatus: 'present',
       });
-      toast.success("Attendance verified and saved!");
+      toast.success("Attendance verified and saved! ✓");
       await mutateAttendance();
       setScanState('idle');
-      setTimeout(() => router.push('/student/mylectures'), 1500);
+      setTimeout(() => router.push('/student/mylectures'), 1800);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error?.message || "Failed to save attendance.");
+      setScanState('idle');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleFaceFailure = (reason: string) => {
+    setScanState('face-failed');
+    setScanError(reason);
   };
 
   const handleManualRequest = async () => {
@@ -312,7 +539,11 @@ export default function SubmitAttendancePage() {
             <div className="px-8 py-10 text-center relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-green-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
               <div className="w-20 h-20 bg-green-50 dark:bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6 relative">
-                <ShieldCheck className="w-10 h-10 text-green-500" />
+                {scanState === 'face-verify' ? (
+                  <ScanFace className="w-10 h-10 text-blue-500" />
+                ) : (
+                  <ShieldCheck className="w-10 h-10 text-green-500" />
+                )}
                 {alreadySubmitted && (
                   <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center border-2 border-background text-white">
                     <CheckCircle2 className="w-4 h-4" />
@@ -320,13 +551,40 @@ export default function SubmitAttendancePage() {
                 )}
               </div>
               <h1 className="text-2xl font-extrabold text-foreground mb-2">
-                {alreadySubmitted ? 'Attendance Registered' : 'Scan QR to Attend'}
+                {alreadySubmitted
+                  ? 'Attendance Registered'
+                  : scanState === 'face-verify'
+                  ? 'Face Verification'
+                  : 'Scan QR to Attend'}
               </h1>
               <p className="text-foreground/60 text-sm">
                 {alreadySubmitted
                   ? "Your attendance for today's lecture has been successfully recorded."
+                  : scanState === 'face-verify'
+                  ? "QR code verified ✓ — Now verify your face to complete attendance."
                   : "Ask your teacher to show the QR code, then scan it to verify your live presence."}
               </p>
+
+              {/* Step indicator */}
+              {!alreadySubmitted && (
+                <div className="flex items-center justify-center gap-2 mt-5">
+                  <div className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full 
+                    ${scanState === 'face-verify' || scanState === 'face-failed'
+                      ? 'bg-green-500/10 text-green-600'
+                      : 'bg-blue-500/10 text-blue-600'}`}>
+                    <QrCode className="w-3.5 h-3.5" />
+                    QR Scan
+                  </div>
+                  <div className={`w-6 h-px ${scanState === 'face-verify' || scanState === 'face-failed' ? 'bg-green-500' : 'bg-foreground/20'}`} />
+                  <div className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full
+                    ${scanState === 'face-verify'
+                      ? 'bg-blue-500/10 text-blue-600'
+                      : 'bg-foreground/5 text-foreground/40'}`}>
+                    <ScanFace className="w-3.5 h-3.5" />
+                    Face ID
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Lecture Details */}
@@ -369,6 +627,8 @@ export default function SubmitAttendancePage() {
             {/* Action Area */}
             <div className="p-8 bg-background border-t border-foreground/10">
               <AnimatePresence mode="wait">
+
+                {/* Already submitted */}
                 {alreadySubmitted && isPresent && (
                   <motion.div key="done" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
                     className="w-full py-4 bg-green-500/10 text-green-600 font-bold rounded-2xl flex justify-center items-center gap-2 border border-green-500/20">
@@ -381,29 +641,82 @@ export default function SubmitAttendancePage() {
                     <Clock className="w-5 h-5" /> Request Pending Approval
                   </motion.div>
                 )}
+
+                {/* Idle — show action buttons */}
                 {!alreadySubmitted && scanState === 'idle' && (
-                  <div className="space-y-3 w-full">
-                    <motion.button key="scan-btn" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+                  <motion.div key="idle" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-3 w-full">
+                    <button
                       onClick={() => setScanState('scanning')}
                       className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl transition-all shadow-lg hover:-translate-y-0.5 flex justify-center items-center gap-2">
                       <QrCode className="w-5 h-5" /> Scan Attendance QR
-                    </motion.button>
-                    
-                    <motion.button key="request-btn" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+                    </button>
+                    <button
                       onClick={handleManualRequest}
                       disabled={isSubmitting}
                       className="w-full py-4 bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 font-bold rounded-2xl transition-all border border-orange-500/20 flex justify-center items-center gap-2 disabled:opacity-50">
-                      {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <MapPin className="w-5 h-5" />} 
+                      {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <MapPin className="w-5 h-5" />}
                       Request to Teacher
-                    </motion.button>
-                  </div>
+                    </button>
+                  </motion.div>
                 )}
-                {!alreadySubmitted && (scanState === 'verifying' || isSubmitting) && (
+
+                {/* Verifying QR */}
+                {!alreadySubmitted && scanState === 'verifying' && (
                   <motion.div key="verifying" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
                     className="w-full py-4 bg-blue-500/10 text-blue-600 font-bold rounded-2xl flex justify-center items-center gap-2 border border-blue-500/20">
                     <Loader2 className="w-5 h-5 animate-spin" /> Verifying QR…
                   </motion.div>
                 )}
+
+                {/* Face Verification Step */}
+                {!alreadySubmitted && scanState === 'face-verify' && (
+                  <motion.div key="face-verify" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full space-y-4">
+                    {faceEmbedding ? (
+                      <FaceVerifyStep
+                        studentDescriptor={faceEmbedding}
+                        onSuccess={handleFaceSuccess}
+                        onFailure={handleFaceFailure}
+                      />
+                    ) : (
+                      // Student has no face embedding — skip face check and submit directly
+                      <div className="w-full space-y-4">
+                        <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-3">
+                          <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                          <p className="text-amber-600 text-sm font-medium">
+                            Face not registered. Submitting attendance without face verification.
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleFaceSuccess}
+                          disabled={isSubmitting}
+                          className="w-full py-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-2xl transition-all shadow-lg flex justify-center items-center gap-2 disabled:opacity-50">
+                          {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                          Submit Attendance
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+
+                {/* Face Failed */}
+                {!alreadySubmitted && scanState === 'face-failed' && (
+                  <motion.div key="face-failed" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-3 w-full">
+                    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-center">
+                      <XCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+                      <p className="text-red-600 font-bold text-sm">{scanError}</p>
+                    </div>
+                    <button onClick={() => { setScanError(''); setScanState('face-verify'); }}
+                      className="w-full py-4 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 font-bold rounded-2xl transition-all border border-blue-500/20 flex justify-center items-center gap-2">
+                      <RefreshCcw className="w-5 h-5" /> Retry Face Scan
+                    </button>
+                    <button onClick={() => { setScanError(''); setScanState('idle'); }}
+                      className="w-full py-3 bg-foreground/5 hover:bg-foreground/10 text-foreground/60 font-semibold rounded-2xl transition-all flex justify-center items-center gap-2">
+                      <ArrowLeft className="w-4 h-4" /> Start Over
+                    </button>
+                  </motion.div>
+                )}
+
+                {/* QR Error */}
                 {!alreadySubmitted && scanState === 'error' && (
                   <motion.div key="error" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-3 w-full">
                     <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-center">
@@ -416,6 +729,15 @@ export default function SubmitAttendancePage() {
                     </button>
                   </motion.div>
                 )}
+
+                {/* Submitting */}
+                {isSubmitting && (
+                  <motion.div key="submitting" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                    className="w-full py-4 bg-green-500/10 text-green-600 font-bold rounded-2xl flex justify-center items-center gap-2 border border-green-500/20 mt-3">
+                    <Loader2 className="w-5 h-5 animate-spin" /> Saving attendance…
+                  </motion.div>
+                )}
+
               </AnimatePresence>
             </div>
           </motion.div>
@@ -442,12 +764,10 @@ export default function SubmitAttendancePage() {
               {/* Camera area */}
               <div className="flex-1 flex flex-col items-center justify-center px-6 gap-6 min-h-0">
                 <div className="relative w-full max-w-sm">
-                  {/* Corner markers */}
                   <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-blue-400 rounded-tl-lg z-10 pointer-events-none" />
                   <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-blue-400 rounded-tr-lg z-10 pointer-events-none" />
                   <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-blue-400 rounded-bl-lg z-10 pointer-events-none" />
                   <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-blue-400 rounded-br-lg z-10 pointer-events-none" />
-                  {/* Scanning laser */}
                   <motion.div
                     className="absolute left-2 right-2 h-0.5 bg-blue-400/80 z-10 rounded-full pointer-events-none"
                     style={{ boxShadow: '0 0 8px 2px rgba(96,165,250,0.6)' }}
@@ -475,4 +795,4 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
   const dLon = (Number(lon2) - Number(lon1)) * (Math.PI / 180);
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(Number(lat1) * Math.PI / 180) * Math.cos(Number(lat2) * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}WeakSet
+}
