@@ -25,7 +25,7 @@ async function verifyQrToken(token: string, expectedLectureId: string): Promise<
 
   const age = Date.now() - timestamp;
   if (age > QR_WINDOW_MS) {
-    return { valid: false, reason: `QR code expired (${Math.round(age / 1000)}s old). Wait for teacher to refresh.` };
+    return { valid: false, reason: `QR code expired Wait for teacher to refresh.` };
   }
 
   if (tokenLectureId !== expectedLectureId) {
