@@ -3,13 +3,13 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
   try {
     const { messages } = await req.json();
-    const apiKey = process.env.AI_SARVAM_API;
+    const apiKey = process.env.AI_API_TOKEN_POLLINATIONS;
 
     if (!apiKey) {
       return NextResponse.json({ error: 'Sarvam API key not configured' }, { status: 500 });
     }
 
-    const response = await fetch('https://api.sarvam.ai/v1/chat/completions', {
+    const response = await fetch('https://gen.pollinations.ai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -30,11 +30,11 @@ AMS Features:
 - Modern UI: High-performance, animated interface built with Next.js, Tailwind CSS, and Framer Motion.
 
 Your Goal: 
-Help users navigate AMS, explain its features, and provide professional consultation on how to best use the system for their institutions or teams. Keep your tone premium, clear, and supportive. keep your response short and concise.`
+Help users navigate AMS, explain its features, and provide professional consultation on how to best use the system for their institutions or teams. Keep your tone premium, clear, and supportive.`
           },
           ...messages
         ],
-        model: 'sarvam-105b',
+        model: 'openai-fast',
         stream: true, // Enable streaming
       }),
     });
