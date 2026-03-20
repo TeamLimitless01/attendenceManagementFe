@@ -1,123 +1,58 @@
+import { NextResponse } from 'next/server';
 
-const systemPrompt = `You are a helpful assistant.`
 export async function POST(req: Request) {
-    try {
-        const { messages, model, stream: isStream, personality, provider } = await req.json();
-        // const lastMessage = messages[messages.length - 1]?.content || "";
+  try {
+    const { messages } = await req.json();
+    const apiKey = process.env.AI_SARVAM_API;
 
-        console.log("Received messages:", personality, model, provider);
-
-        // const imageKeywords = [
-        //   "generate image",
-        //   "create image",
-        //   "make image",
-        //   "draw",
-        //   "picture of",
-        //   "image of",
-        //   "show me",
-        //   "visualize",
-        //   "illustration",
-        //   "artwork",
-        //   "photo of",
-        // ];
-
-        // const isImageRequest = imageKeywords.some((keyword) =>
-        //   lastMessage.toLowerCase().includes(keyword)
-        // );
-
-        // if (isImageRequest) {
-        //   let imagePrompt = lastMessage
-        //     .replace(
-        //       /generate image of|create image of|make image of|draw|picture of|image of|show me|visualize|illustration of|artwork of|photo of/gi,
-        //       ""
-        //     )
-        //     .trim();
-
-        //   if (!imagePrompt) {
-        //     imagePrompt = lastMessage;
-        //   }
-
-        //   console.log("Image request detected:", imagePrompt);
-
-        //   const encodedPrompt = encodeURIComponent(imagePrompt);
-        //   const randomSeed = Math.floor(Math.random() * 100);
-        //   const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?enhance=true&nologo=true&model=kontext&seed=${randomSeed}&token=${process.env.AI_API_TOKEN}&referer=${process.env.SITE_BASE_URL}`;
-
-        //   return Response.json({
-        //     message: `🎨 **Image Generated Successfully!**\n\n![Generated Image](${imageUrl})\n\n**Prompt:** ${imagePrompt}\n\n*AI has visualized your request! ✨*`,
-        //     isImage: true,
-        //     imageUrl: imageUrl,
-        //     imagePrompt: imagePrompt,
-        //   });
-        // }
-
-        // Prepare streaming request to pollinations.ai
-        // https://text.pollinations.ai/openai
-
-        const API_URI = "https://gen.pollinations.ai/v1/chat/completions"
-
-        // console.log(typeof API_URI)
-
-        const upstreamResponse = await fetch(API_URI, {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${process.env.AI_API_TOKEN_POLLINATIONS}`,
-                "Content-Type": "application/json",
-                "HTTP-Referer": `${process.env.SITE_BASE_URL}`,
-                "X-Title": "VOID AI",
-            },
-            body: JSON.stringify({
-                model: model || "openai",
-                stream: isStream || false,
-                messages: [
-                    {
-                        role: "system",
-                        content: systemPrompt || "void",
-                    },
-                    ...messages
-
-                ],
-            }),
-        });
-
-        if (!upstreamResponse.ok || !upstreamResponse.body) {
-            console.log(upstreamResponse)
-            return new Response("Upstream failed", { status: 502 });
-        }
-
-
-
-        const encoder = new TextEncoder();
-        const stream = new ReadableStream({
-            async start(controller) {
-                const reader = upstreamResponse.body!.getReader();
-                const decoder = new TextDecoder("utf-8");
-
-                while (true) {
-                    const { value, done } = await reader.read();
-                    if (done) break;
-
-                    const textChunk = decoder.decode(value);
-                    controller.enqueue(encoder.encode(textChunk));
-                }
-
-                controller.close();
-            },
-        });
-
-        return new Response(stream, {
-            headers: {
-                "Content-Type": "text/plain; charset=utf-8",
-                "Transfer-Encoding": "chunked",
-                "Cache-Control": "no-cache",
-                Connection: "keep-alive",
-            },
-        });
-    } catch (error) {
-        console.error("API Error:", error);
-        return Response.json(
-            { error: "Ohh there's something wrong, try again!" },
-            { status: 500 }
-        );
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Sarvam API key not configured' }, { status: 500 });
     }
+
+    const response = await fetch('https://api.sarvam.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages: [
+          {
+            role: 'system',
+            content: `You are the AMS (Attendance Management System) Assistant. You are a professional, helpful, and sleek AI representative for AMS. 
+
+AMS Features:
+- AI-Powered Facial Recognition: Users can register their faces and verify them for instant attendance.
+- Precision Geo-fencing: Restricts attendance logging to authorized GPS coordinates.
+- Integrated LMS: A complete Learning Management System to manage subjects, class schedules, and student enrollments.
+- Multi-role Support: Specialized portals for Administrators, Teachers, and Students.
+- Real-time Analytics: Dynamic dashboards with visualization of attendance trends and participation metrics.
+- Modern UI: High-performance, animated interface built with Next.js, Tailwind CSS, and Framer Motion.
+
+Your Goal: 
+Help users navigate AMS, explain its features, and provide professional consultation on how to best use the system for their institutions or teams. Keep your tone premium, clear, and supportive.`
+          },
+          ...messages
+        ],
+        model: 'sarvam-105b',
+        temperature: 0.7,
+        top_p: 1,
+        max_tokens: 1500,
+        stream: true, // Enable streaming
+      }),
+    });
+
+    // Pass the stream directly back to the client
+    return new Response(response.body, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    });
+
+  } catch (error) {
+    console.error('Sarvam API Error:', error);
+    return NextResponse.json({ error: 'Failed to process chat request' }, { status: 500 });
+  }
 }

@@ -2,7 +2,7 @@
 import RegisterFace from "@/components/face-rec/RegisterFace";
 import { useParams } from "next/navigation";
 
-const page = () => {
+const Page = () => {
     const params = useParams();
     const studentId = params.studentId as string;
     return (
@@ -12,4 +12,4 @@ const page = () => {
     );
 };
 
-export default page;
+export default Page;

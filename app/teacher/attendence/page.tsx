@@ -142,7 +142,7 @@ export default function TeacherAttendanceHub() {
   const openQrModal = async (lectureId: string, name: string) => {
      setActiveLectureName(name);
      setActiveQrLectureId(lectureId);
-     setCountdown(3);
+     setCountdown(50);
      const token = await generateAttendanceToken(lectureId);
      setQrToken(token);
   };
@@ -176,7 +176,7 @@ export default function TeacherAttendanceHub() {
              if (prev <= 1) {
                 // Generate next token cleanly on the client layer using Web Crypto API
                 generateAttendanceToken(activeQrLectureId).then(token => setQrToken(token));
-                return 3;
+                return 50;
              }
              return prev - 1;
           });
