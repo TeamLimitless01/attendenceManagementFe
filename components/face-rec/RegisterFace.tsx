@@ -152,13 +152,24 @@ export default function RegisterFace({ studentId, name }: { studentId: string; n
     async function loop() {
       if (!enrollStreamRef.current) return;
       try {
+        const v = enrollVideoRef.current;
+        if (!v) return;
         const det = await window.faceapi.detectSingleFace(
-          enrollVideoRef.current,
-          new window.faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })
+          v,
+          new window.faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 })
         );
         if (det) { 
-          setEnrollFaceMsgOk(true); 
-          setEnrollFaceMsg('✓ Biometric Signature Valid'); 
+          // Check face size relative to frame
+          const minFaceSize = v.videoHeight * 0.3; // At least 30% of height
+          const isCloseEnough = det.box.height >= minFaceSize;
+          
+          if (isCloseEnough) {
+            setEnrollFaceMsgOk(true); 
+            setEnrollFaceMsg('✓ Biometric Signature Valid'); 
+          } else {
+            setEnrollFaceMsgOk(false);
+            setEnrollFaceMsg('Move closer to the camera');
+          }
         } else { 
           setEnrollFaceMsgOk(false); 
           setEnrollFaceMsg('Align face within detection zone...'); 
@@ -173,8 +184,9 @@ export default function RegisterFace({ studentId, name }: { studentId: string; n
     if (!enrollStreamRef.current) { showToast('Activate vision sensor first', 'info'); return; }
     setEnrollMsg({ text: 'Verifying facial anatomy…', type: 'info' });
     try {
+      const v = enrollVideoRef.current!;
       const det = await window.faceapi
-        .detectSingleFace(enrollVideoRef.current, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.45 }))
+        .detectSingleFace(v, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 }))
         .withFaceLandmarks()
         .withFaceDescriptor();
       
@@ -182,10 +194,16 @@ export default function RegisterFace({ studentId, name }: { studentId: string; n
         setEnrollMsg({ text: 'Mapping failed. Ensure clear lighting.', type: 'error' }); 
         return; 
       }
+
+      // Final size check
+      const minFaceSize = v.videoHeight * 0.3;
+      if (det.detection.box.height < minFaceSize) {
+        setEnrollMsg({ text: 'Face too far. Move closer for better accuracy.', type: 'error' });
+        return;
+      }
       
       setCapturedDesc(Array.from(det.descriptor));
       const snap = document.createElement('canvas');
-      const v = enrollVideoRef.current!;
       snap.width = v.videoWidth; 
       snap.height = v.videoHeight;
       const ctx = snap.getContext('2d');
