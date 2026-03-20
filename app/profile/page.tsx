@@ -212,7 +212,7 @@ function DetailItem({ icon, label, value, color }: { icon: React.ReactNode, labe
   return (
     <div className="flex items-start gap-4">
       <div className="w-10 h-10 bg-foreground/[0.03] rounded-xl flex items-center justify-center text-foreground/20 mt-1 shrink-0">
-        {React.cloneElement(icon as React.ReactElement, { className: "w-5 h-5" })}
+        {React.cloneElement(icon as React.ReactElement<any>, { className: "w-5 h-5" })}
       </div>
       <div>
         <p className="text-[10px] font-black text-foreground/30 uppercase tracking-widest leading-none mb-2">{label}</p>

@@ -41,7 +41,7 @@ export default function TeacherDashboard() {
     populate: ['class', 'subject', 'students', 'students.user']
   });
 
-  const lectures = lecturesData?.data || [];
+  const lectures: any[] = lecturesData?.data || [];
   
   // Set initial selection
   useEffect(() => {
@@ -104,7 +104,7 @@ export default function TeacherDashboard() {
         present: presentCount,
         total: actualSessionsCount,
         percentage,
-        lastSeen: latestAtt ? (latestAtt.attributes?.date || latestAtt.date) : 'Never'
+        lastSeen: latestAtt ? ((latestAtt as any).attributes?.date || (latestAtt as any).date) : 'Never'
       };
     }).filter((s:any) => s.name.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [students, attendances, searchQuery]);
@@ -112,7 +112,7 @@ export default function TeacherDashboard() {
   // ── Native CSV Export (No Libraries) ──────────────────────────────────
   const exportToCSV = () => {
     const headers = ['Student Name', 'Email', 'Roll Number', 'Present Sessions', 'Total Sessions', 'Attendance Rate (%)', 'Last Attendance'];
-    const rows = studentStats.map(s => [
+    const rows = studentStats.map((s: any) => [
       `"${s.name}"`,
       `"${s.email}"`,
       `"${s.rollNumber}"`,
@@ -234,10 +234,10 @@ export default function TeacherDashboard() {
 
         {/* Stats Dashboard */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-            <StatsOverviewCard icon={<TrendingUp />} label="Avg. Class Consistency" value={`${Math.round(studentStats.reduce((a,b)=>a+b.percentage,0) / Math.max(studentStats.length,1))}%`} color="blue" />
-            <StatsOverviewCard icon={<Users />} label="Sessions Registry" value={Array.from(new Set(attendances.map((att:any)=>att.attributes?.date || att.date))).length} color="green" />
-            <StatsOverviewCard icon={<AlertTriangle />} label="Attendance Alerts" value={studentStats.filter(s => s.percentage < 75).length} color="red" />
-            <StatsOverviewCard icon={<Calendar />} label="Lecture Window" value={selectedLecture?.start_time?.slice(0,5) || 'N/A'} color="purple" />
+            <StatsOverviewCard icon={<TrendingUp />} label="Avg. Class Consistency" value={`${Math.round(studentStats.reduce((a: any, b: any) => a + b.percentage, 0) / Math.max(studentStats.length, 1))}%`} color="blue" />
+            <StatsOverviewCard icon={<Users />} label="Sessions Registry" value={Array.from(new Set(attendances.map((att: any) => (att as any).attributes?.date || (att as any).date))).length} color="green" />
+            <StatsOverviewCard icon={<AlertTriangle />} label="Attendance Alerts" value={studentStats.filter((s: any) => s.percentage < 75).length} color="red" />
+            <StatsOverviewCard icon={<Calendar />} label="Lecture Window" value={selectedLecture?.start_time?.slice(0, 5) || 'N/A'} color="purple" />
         </div>
 
         {/* Master Student Data Table */}
@@ -402,7 +402,7 @@ function StatsOverviewCard({ icon, label, value, color }: any) {
   return (
     <div className="bg-background border border-foreground/10 rounded-[2.5rem] p-8 shadow-sm group hover:border-blue-500/20 transition-all duration-300">
        <div className={`w-14 h-14 ${themes[color]} rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
-          {React.cloneElement(icon as React.ReactElement, { className: "w-6 h-6" })}
+          {React.cloneElement(icon as React.ReactElement<any>, { className: "w-6 h-6" })}
        </div>
        <p className="text-[10px] font-black text-foreground/30 uppercase tracking-widest leading-none mb-2">{label}</p>
        <h4 className="text-3xl font-black text-foreground tracking-tighter">{value}</h4>

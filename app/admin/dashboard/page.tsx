@@ -130,7 +130,7 @@ export default function AdminDashboard() {
                 <span className="text-[10px] font-black uppercase text-foreground/40 tracking-widest">Institutional Data Audit</span>
              </div>
              <h1 className="text-5xl font-black text-foreground tracking-tight mb-2">
-               Central <span className="text-blue-600">Registry.</span>
+               Admin <span className="text-blue-600">Dashboard.</span>
              </h1>
              <p className="text-foreground/50 font-medium max-w-lg text-lg">
                Direct synchronization with the campus repository. Real-time metrics overview of active academic entities.

@@ -21,7 +21,7 @@ const DAYS = [
 
 export default function MyLecturesPage() {
   const { data: session } = useSession();
-  const userId:any = session?.user?.id;
+  const userId: any = (session?.user as any)?.id;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedLecture, setSelectedLecture] = useState<any>(null);

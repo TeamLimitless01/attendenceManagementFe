@@ -21,7 +21,7 @@ export async function saveStudents(students: Student[]): Promise<void> {
       photo: students[0].photo,
 
     })
-    if (!res.ok) {
+    if (!res) {
       throw new Error('Failed to save students');
     }
   } catch (error) {

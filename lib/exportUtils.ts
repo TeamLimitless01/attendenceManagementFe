@@ -141,7 +141,14 @@ export function exportCSV(students: Student[], logs: LogEntry[], cfg: Config, to
   const rows = [['Roll No', 'Name', 'Date', 'Status', 'Time', 'Confidence %']];
   students.forEach(s => {
     const r = logs.find(l => l.sid === s.id && l.date === today);
-    rows.push([s.roll, s.name, today, r ? 'Present' : 'Absent', r ? r.time : '', r ? String(r.conf) : '']);
+    rows.push([
+      s.roll ?? '', 
+      s.name ?? '', 
+      today ?? '', 
+      r ? 'Present' : 'Absent', 
+      r?.time ?? '', 
+      r?.conf !== undefined ? String(r.conf) : ''
+    ]);
   });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' }));

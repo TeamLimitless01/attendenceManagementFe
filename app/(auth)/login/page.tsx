@@ -120,11 +120,11 @@ export default function LoginPage() {
                                 )}
                             </button>
                         </div>
-                        <div style={{ textAlign: "right", marginTop: "4px" }}>
+                        {/* <div style={{ textAlign: "right", marginTop: "4px" }}>
                             <Link href="/forgot-password" style={{ fontSize: "0.75rem", color: "#818cf8", textDecoration: "none" }}>
                                 Forgot password?
                             </Link>
-                        </div>
+                        </div> */}
                     </div>
 
                     <button
@@ -141,10 +141,10 @@ export default function LoginPage() {
                 </form>
 
                 {/* Footer */}
-                <p className="auth-footer">
+                {/* <p className="auth-footer">
                     Don&apos;t have an account?{" "}
                     <Link href="/register">Create one</Link>
-                </p>
+                </p> */}
             </div>
         </div>
     );
