@@ -12,7 +12,7 @@ import Header from '@/components/Header';
 import Link from 'next/link';
 
 // ── QR Token Verification ─────────────────────────────────────────────────────
-const QR_WINDOW_MS = 75_000; // Increased buffer for teacher's 60s rotation
+const QR_WINDOW_MS = 5_000; // Tight window for fast 2s rotation demo
 const SECRET_KEY = process.env.NEXT_PUBLIC_SECRET || "default-attendance-secret-12345";
 
 async function verifyQrToken(token: string, expectedLectureId: string): Promise<{ valid: boolean; reason?: string }> {
@@ -797,7 +797,7 @@ export default function SubmitAttendancePage() {
                   <QrScannerWidget onScanSuccess={handleQrScanned} />
                 </div>
                 <p className="text-white/40 text-xs text-center max-w-xs">
-                  The QR code refreshes every 60 seconds — scan quickly!
+                  The QR code refreshes every 2 seconds — scan quickly!
                 </p>
               </div>
             </motion.div>
