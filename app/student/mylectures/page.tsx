@@ -121,7 +121,7 @@ export default function StudentMyLecturesPage() {
                  </div>
                </div>
                <button
-                 onClick={() => router.push(`/face-recognition/register/${student.documentId}`)}
+                 onClick={() => router.push(`/face-recognition/register/${student.documentId}/${student?.user?.username || 'Student'}`)}
                  className="shrink-0 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-sm transition-all shadow hover:shadow-md hover:-translate-y-0.5 flex items-center gap-2"
                >
                  <ScanFace className="w-4 h-4" />

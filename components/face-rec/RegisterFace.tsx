@@ -1,9 +1,8 @@
 'use client';
 
-import { loadConfig, loadLogs, loadStudents, saveLogs, saveStudents } from '@/lib/storage';
-import type { Config, LogEntry, Student } from '@/lib/types';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 import { 
   ScanFace, 
   Camera, 
@@ -13,8 +12,11 @@ import {
   RefreshCcw, 
   Loader2,
   Fingerprint,
-  ArrowRight
+  ArrowRight,
+  ShieldCheck,
+  PartyPopper
 } from 'lucide-react';
+import { strapi } from '@/lib/sdk/sdk';
 
 const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/model/';
 
@@ -25,18 +27,17 @@ declare global {
   }
 }
 
-export default function RegisterFace({ studentId }: { studentId: string }) {
-  // ── Data State ──
-  const [students, setStudents] = useState<Student[]>([]);
-  const [cfg, setCfg] = useState<Config>({ cls: '', subject: '', teacher: '', date: '' });
-
+export default function RegisterFace({ studentId, name }: { studentId: string; name?: string }) {
+  const router = useRouter();
+  
   // ── UI State ──
   const [modelsReady, setModelsReady] = useState(false);
   const [loaderVisible, setLoaderVisible] = useState(true);
-  const [loaderTxt, setLoaderTxt] = useState('Initializing AI Models…');
+  const [loaderTxt, setLoaderTxt] = useState('Initializing Biometrics Engine…');
   const [loaderPct, setLoaderPct] = useState(0);
   const [toast, setToast] = useState({ msg: '', type: 'info' as 'info' | 'success' | 'error' });
   const [toastVisible, setToastVisible] = useState(false);
+  const [step, setStep] = useState<'scan' | 'success'>('scan');
 
   // ── Enroll State ──
   const [enrollActive, setEnrollActive] = useState(false);
@@ -53,22 +54,10 @@ export default function RegisterFace({ studentId }: { studentId: string }) {
   const enrollStreamRef = useRef<MediaStream | null>(null);
   const enrollDetTmrRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const studentsRef = useRef<Student[]>([]);
-
-  // Keep refs in sync
-  useEffect(() => { studentsRef.current = students; }, [students]);
 
   // ── Boot ──
   useEffect(() => {
-    const storedCfg = loadConfig();
-    const storedStudents = loadStudents();
-    const storedLogs = loadLogs();
-
-    setCfg(storedCfg);
-    setStudents(storedStudents);
-
     loadModels();
-    
     return () => {
       stopEnrollCam();
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -79,21 +68,21 @@ export default function RegisterFace({ studentId }: { studentId: string }) {
   // ── Load Models ──
   async function loadModels() {
     const steps: [string, number, string][] = [
-      ['tinyFaceDetector', 30, 'Loading face detector…'],
-      ['faceLandmark68Net', 65, 'Identifying facial contours…'],
-      ['faceRecognitionNet', 95, 'Finalizing neural patterns…'],
+      ['tinyFaceDetector', 30, 'Awakening face detector…'],
+      ['faceLandmark68Net', 65, 'Mapping biometric features…'],
+      ['faceRecognitionNet', 95, 'Synthesizing neural pathways…'],
     ];
     try {
-      await new Promise<void>((resolve, reject) => {
-        const existing = document.querySelector('script[data-faceapi]');
-        if (existing) { resolve(); return; }
-        const s = document.createElement('script');
-        s.src = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';
-        s.setAttribute('data-faceapi', '1');
-        s.onload = () => resolve();
-        s.onerror = reject;
-        document.head.appendChild(s);
-      });
+      if (!window.faceapi) {
+        await new Promise<void>((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';
+          s.setAttribute('data-faceapi', '1');
+          s.onload = () => resolve();
+          s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      }
 
       for (const [net, pct, label] of steps) {
         setLoaderTxt(label);
@@ -105,11 +94,11 @@ export default function RegisterFace({ studentId }: { studentId: string }) {
       await new Promise(r => setTimeout(r, 800));
       setLoaderVisible(false);
       setModelsReady(true);
-      showToast('AI Intelligence Core Online', 'success');
+      showToast('Neural Network Fully Operational', 'success');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      setLoaderTxt('Neural Core Failure: ' + message);
-      showToast('Failed to load neural core', 'error');
+      setLoaderTxt('Biometric Access Restricted: ' + message);
+      showToast('Registration system failure', 'error');
     }
   }
 
@@ -138,13 +127,13 @@ export default function RegisterFace({ studentId }: { studentId: string }) {
         await enrollVideoRef.current.play();
       }
       setEnrollActive(true);
-      setEnrollFaceMsg('Looking for valid face signature...');
+      setEnrollFaceMsg('Syncing identity scanner…');
       setEnrollFaceMsgOk(false);
       setShowSnap(false);
       startEnrollDetection();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      showToast('Vision access denied: ' + msg, 'error');
+      showToast('Scanner access denied: ' + msg, 'error');
     }
   }, [modelsReady, showToast]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -169,10 +158,10 @@ export default function RegisterFace({ studentId }: { studentId: string }) {
         );
         if (det) { 
           setEnrollFaceMsgOk(true); 
-          setEnrollFaceMsg('✅ Biometric Signature Clear'); 
+          setEnrollFaceMsg('✓ Biometric Signature Valid'); 
         } else { 
           setEnrollFaceMsgOk(false); 
-          setEnrollFaceMsg('🔍 Align face with sensor...'); 
+          setEnrollFaceMsg('Align face within detection zone...'); 
         }
       } catch { /* ignore */ }
       enrollDetTmrRef.current = setTimeout(loop, 400);
@@ -182,7 +171,7 @@ export default function RegisterFace({ studentId }: { studentId: string }) {
 
   const captureFace = useCallback(async () => {
     if (!enrollStreamRef.current) { showToast('Activate vision sensor first', 'info'); return; }
-    setEnrollMsg({ text: 'Analyzing biometric data...', type: 'info' });
+    setEnrollMsg({ text: 'Verifying facial anatomy…', type: 'info' });
     try {
       const det = await window.faceapi
         .detectSingleFace(enrollVideoRef.current, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.45 }))
@@ -190,7 +179,7 @@ export default function RegisterFace({ studentId }: { studentId: string }) {
         .withFaceDescriptor();
       
       if (!det) { 
-        setEnrollMsg({ text: 'Neural scan failed. Look directly at the sensor.', type: 'error' }); 
+        setEnrollMsg({ text: 'Mapping failed. Ensure clear lighting.', type: 'error' }); 
         return; 
       }
       
@@ -205,10 +194,10 @@ export default function RegisterFace({ studentId }: { studentId: string }) {
       setSnapSrc(snap.toDataURL('image/jpeg', 0.9));
       setShowSnap(true);
       stopEnrollCam();
-      setEnrollMsg({ text: 'Signature captured. Ready for database enrollment.', type: 'success' });
+      setEnrollMsg({ text: 'Biometric profile captured.', type: 'success' });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      setEnrollMsg({ text: 'Data parse error: ' + msg, type: 'error' });
+      setEnrollMsg({ text: 'Neural processing error: ' + msg, type: 'error' });
     }
   }, [showToast]);
 
@@ -221,33 +210,26 @@ export default function RegisterFace({ studentId }: { studentId: string }) {
   }
 
   async function enrollStudent() {
+    if (!studentId) return;
     try {
       setLoading(true);
-      const roll = studentId.trim();
-      if (!roll) { setEnrollMsg({ text: 'Student ID missing.', type: 'error' }); return; }
-      if (!capturedDesc) { setEnrollMsg({ text: 'Capture face signature first.', type: 'error' }); return; }
+      if (!capturedDesc) { setEnrollMsg({ text: 'Biometric data missing.', type: 'error' }); return; }
       
-      const studentsFound = studentsRef.current;
-      if (studentsFound.find(s => s.roll === roll)) { 
-        setEnrollMsg({ text: 'This identity is already enrolled in AMS.', type: 'error' }); 
-        return; 
-      }
-
-      const updated = [...studentsFound, { id: Date.now().toString(), roll, descriptor: capturedDesc, photo: snapSrc }];
-      setStudents(updated);
-      await saveStudents(updated);
+      // Update Strapi Student Record
+      await strapi.update('students', studentId, {
+        faceEmbedding: capturedDesc
+      });
       
-      setEnrollMsg({ text: 'Registration Successful. Syncing with AMS cloud...', type: 'success' });
-      showToast('Registration Success', 'success');
+      setStep('success');
+      showToast('Identity Securely Registered', 'success');
       
-      // Auto-leave or reset after success
+      // Final Redirection
       setTimeout(() => {
-        retakeFace();
-        window.location.href = '/'; // Or back to dashboard
-      }, 2500);
+        router.push('/');
+      }, 3000);
 
-    } catch (error) {
-      showToast("Enrollment Sync Failed", "error");
+    } catch (error: any) {
+      showToast("Identity Registration Failed: " + (error?.message || "Server Error"), "error");
       console.log(error);
     } finally {
       setLoading(false);
@@ -255,15 +237,8 @@ export default function RegisterFace({ studentId }: { studentId: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 selection:bg-blue-100">
-      
-      {/* Dynamic Background */}
-      <div className="fixed inset-0 overflow-hidden -z-10">
-        <div className="absolute top-[10%] left-[20%] w-[40rem] h-[40rem] bg-blue-400/10 rounded-full blur-[120px] animate-pulse" />
-        <div className="absolute bottom-[10%] right-[20%] w-[35rem] h-[35rem] bg-indigo-400/10 rounded-full blur-[120px] animate-pulse delay-700" />
-      </div>
-
-      <AnimatePresence>
+    <div className="w-full flex items-center justify-center p-4">
+      <AnimatePresence mode="wait">
         {loaderVisible ? (
           <motion.div 
             key="loader"
@@ -272,21 +247,21 @@ export default function RegisterFace({ studentId }: { studentId: string }) {
             exit={{ opacity: 0, scale: 0.95 }}
             className="flex flex-col items-center max-w-sm w-full text-center"
           >
-            <div className="w-20 h-20 mb-8 relative">
-                <div className="absolute inset-0 border-4 border-blue-100 rounded-3xl" />
-                <div 
-                  className="absolute inset-0 border-4 border-blue-600 rounded-3xl border-t-transparent animate-spin" 
-                  style={{ animationDuration: '1.5s' }}
+            <div className="w-24 h-24 mb-10 relative">
+                <div className="absolute inset-0 border-[3px] border-blue-100 rounded-[2rem]" />
+                <motion.div 
+                  className="absolute inset-0 border-[3px] border-blue-600 rounded-[2rem] border-t-transparent animate-spin" 
+                  style={{ animationDuration: '1s' }}
                 />
                 <div className="absolute inset-0 flex items-center justify-center">
-                   <ScanFace className="w-8 h-8 text-blue-600" />
+                   <ScanFace className="w-10 h-10 text-blue-600" />
                 </div>
             </div>
             
-            <h2 className="text-2xl font-black text-slate-900 mb-2 tracking-tight">Initializing Sensor</h2>
-            <p className="text-slate-500 font-medium mb-8 text-sm">{loaderTxt}</p>
+            <h2 className="text-3xl font-black text-slate-900 mb-3 tracking-tight">Initializing Sensor</h2>
+            <p className="text-slate-500 font-medium mb-10 text-base">{loaderTxt}</p>
             
-            <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mb-2">
+            <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden mb-3">
               <motion.div 
                 className="h-full bg-blue-600"
                 initial={{ width: 0 }}
@@ -294,7 +269,26 @@ export default function RegisterFace({ studentId }: { studentId: string }) {
                 transition={{ type: 'spring', bounce: 0, duration: 0.5 }}
               />
             </div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Loading AMS AI Engine v2.0</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-400/60">Biometric Identity Engine v3.0</span>
+          </motion.div>
+        ) : step === 'success' ? (
+          <motion.div
+            key="success-card"
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="max-w-md w-full text-center bg-white rounded-[3rem] p-12 shadow-[0_32px_120px_-20px_rgba(37,99,235,0.15)] border border-blue-50"
+          >
+            <div className="w-24 h-24 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-8">
+              <PartyPopper className="w-12 h-12" />
+            </div>
+            <h2 className="text-4xl font-black text-slate-900 mb-4 tracking-tighter">Registration Complete</h2>
+            <p className="text-slate-500 text-lg font-medium mb-10 leading-relaxed px-4">
+              {name ? `Hello ${name}, your` : 'Your'} facial identity has been securely linked to the attendance system.
+            </p>
+            <div className="px-6 py-4 bg-slate-50 rounded-2xl flex items-center justify-center gap-3 text-emerald-600 font-bold text-sm">
+              <CheckCircle2 className="w-5 h-5" /> Identity Verified & Linked
+            </div>
+            <p className="mt-8 text-slate-400 text-xs font-bold uppercase tracking-widest animate-pulse">Redirecting home in 3s...</p>
           </motion.div>
         ) : (
           <motion.div 
@@ -306,17 +300,21 @@ export default function RegisterFace({ studentId }: { studentId: string }) {
             <div className="bg-white rounded-[2.5rem] shadow-[0_32px_120px_-20px_rgba(0,0,0,0.12)] border border-slate-100 overflow-hidden relative">
               
               {/* Header */}
-              <div className="p-8 pb-4 text-center">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-xs font-bold uppercase tracking-wider mb-4">
-                  <Fingerprint className="w-3.5 h-3.5" /> Biometric Registration
+              <div className="p-10 pb-4 text-center">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-xs font-bold uppercase tracking-wider mb-5">
+                  <Fingerprint className="w-3.5 h-3.5" /> Biometric Identity Registration
                 </div>
-                <h1 className="text-3xl font-black text-slate-900 tracking-tighter">Register Your Identity</h1>
-                <p className="text-slate-500 mt-2 font-medium">Link your face to ID: <span className="text-blue-600 font-bold">{studentId}</span></p>
+                <h1 className="text-4xl font-black text-slate-900 tracking-tighter">
+                  {name ? `Welcome, ${name}` : 'Register Your Face'}
+                </h1>
+                <p className="text-slate-500 mt-3 font-medium text-lg leading-snug">
+                  Link your unique facial signature to student account.
+                </p>
               </div>
 
               {/* Main Content */}
-              <div className="p-8 pt-4">
-                <div className="relative aspect-square md:aspect-video bg-slate-100 rounded-[2rem] overflow-hidden border-2 border-slate-100 shadow-inner group">
+              <div className="p-10 pt-4">
+                <div className="relative aspect-square md:aspect-video bg-slate-100 rounded-[2.5rem] overflow-hidden border-2 border-slate-100 shadow-inner group">
                    
                    {/* Scanner UI Overlay */}
                    <AnimatePresence>
@@ -328,16 +326,16 @@ export default function RegisterFace({ studentId }: { studentId: string }) {
                          className="absolute inset-0 z-10 pointer-events-none"
                        >
                           {/* Corner Borders */}
-                          <div className="absolute top-8 left-8 w-12 h-12 border-t-4 border-l-4 border-blue-600 rounded-tl-lg" />
-                          <div className="absolute top-8 right-8 w-12 h-12 border-t-4 border-r-4 border-blue-600 rounded-tr-lg" />
-                          <div className="absolute bottom-8 left-8 w-12 h-12 border-b-4 border-l-4 border-blue-600 rounded-bl-lg" />
-                          <div className="absolute bottom-8 right-8 w-12 h-12 border-b-4 border-r-4 border-blue-600 rounded-br-lg" />
+                          <div className="absolute top-10 left-10 w-16 h-16 border-t-4 border-l-4 border-blue-600 rounded-tl-2xl" />
+                          <div className="absolute top-10 right-10 w-16 h-16 border-t-4 border-r-4 border-blue-600 rounded-tr-2xl" />
+                          <div className="absolute bottom-10 left-10 w-16 h-16 border-b-4 border-l-4 border-blue-600 rounded-bl-2xl" />
+                          <div className="absolute bottom-10 right-10 w-16 h-16 border-b-4 border-r-4 border-blue-600 rounded-br-2xl" />
                           
                           {/* Scanning Line */}
                           <motion.div 
-                            className="absolute left-8 right-8 h-[2px] bg-blue-600/50 shadow-[0_0_15px_rgba(37,99,235,0.5)]"
+                            className="absolute left-10 right-10 h-[2px] bg-blue-600/50 shadow-[0_0_20px_rgba(37,99,235,0.6)]"
                             animate={{ top: ['20%', '80%', '20%'] }}
-                            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
                           />
                        </motion.div>
                      )}
@@ -367,8 +365,12 @@ export default function RegisterFace({ studentId }: { studentId: string }) {
                    {/* Camera Placeholder */}
                    {!enrollActive && !showSnap && (
                      <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-50 z-30">
-                        <Camera className="w-16 h-16 mb-4 stroke-[1.5]" />
-                        <p className="text-sm font-bold tracking-tight px-8 text-center">Ready for biometric scan. Click below to begin.</p>
+                        <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-6">
+                            <Camera className="w-10 h-10 stroke-[1.5]" />
+                        </div>
+                        <p className="text-sm font-bold tracking-tight px-12 text-center text-slate-400">
+                          To begin your registration, activate the vision sensor below.
+                        </p>
                      </div>
                    )}
 
@@ -376,13 +378,18 @@ export default function RegisterFace({ studentId }: { studentId: string }) {
                    <AnimatePresence>
                     {enrollActive && (
                       <motion.div 
-                        initial={{ opacity: 0, y: 10 }}
+                        initial={{ opacity: 0, y: 15 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0 }}
-                        className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-40 px-6 py-2.5 rounded-2xl flex items-center gap-3 backdrop-blur-xl border-2 shadow-2xl transition-colors ${enrollFaceMsgOk ? 'bg-emerald-500/90 border-emerald-400/50 text-white' : 'bg-slate-900/80 border-slate-700/50 text-white'}`}
+                        className={`absolute bottom-8 left-1/2 -translate-x-1/2 z-40 px-8 py-3.5 rounded-[1.5rem] flex items-center gap-3.5 backdrop-blur-2xl border-2 shadow-[0_20px_50px_rgba(0,0,0,0.2)] transition-colors ${enrollFaceMsgOk ? 'bg-emerald-600/90 border-emerald-400/50 text-white' : 'bg-slate-900/80 border-slate-700/50 text-white'}`}
                       >
-                         {enrollFaceMsgOk ? <CheckCircle2 className="w-5 h-5 flex-shrink-0" /> : <Loader2 className="w-5 h-5 flex-shrink-0 animate-spin" />}
-                         <span className="text-sm font-bold truncate max-w-[200px]">{enrollFaceMsg}</span>
+                         {enrollFaceMsgOk ? 
+                            <ShieldCheck className="w-6 h-6 flex-shrink-0" /> : 
+                            <Loader2 className="w-6 h-6 flex-shrink-0 animate-spin" />
+                         }
+                         <span className="text-base font-black truncate max-w-[240px] leading-tight tracking-tight">
+                            {enrollFaceMsg}
+                         </span>
                       </motion.div>
                     )}
                    </AnimatePresence>
@@ -397,9 +404,9 @@ export default function RegisterFace({ studentId }: { studentId: string }) {
                           initial={{ opacity: 0, scale: 0.98 }}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0 }}
-                          className={`text-sm font-bold flex items-center justify-center gap-2 ${enrollMsg.type === 'error' ? 'text-rose-600' : enrollMsg.type === 'success' ? 'text-emerald-600' : 'text-blue-600'}`}
+                          className={`text-base font-bold flex items-center justify-center gap-3 ${enrollMsg.type === 'error' ? 'text-rose-600' : enrollMsg.type === 'success' ? 'text-emerald-700' : 'text-blue-600'}`}
                         >
-                          {enrollMsg.type === 'error' ? <AlertCircle className="w-4 h-4" /> : enrollMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+                          {enrollMsg.type === 'error' ? <AlertCircle className="w-5 h-5" /> : enrollMsg.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <Sparkles className="w-5 h-5" />}
                           {enrollMsg.text}
                         </motion.p>
                      )}
@@ -409,36 +416,36 @@ export default function RegisterFace({ studentId }: { studentId: string }) {
                 {/* Actions */}
                 <div className="mt-8 flex flex-col gap-4">
                   {!showSnap ? (
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-5">
                       <button 
                          onClick={toggleEnrollCam}
-                         className={`h-14 rounded-2xl flex items-center justify-center font-bold transition-all active:scale-95 ${enrollActive ? 'bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                         className={`h-16 rounded-[1.5rem] flex items-center justify-center font-black text-lg transition-all active:scale-[0.97] ${enrollActive ? 'bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
                       >
-                         {enrollActive ? 'Cancel Sensor' : 'Open Camera'}
+                         {enrollActive ? 'Stop Sensor' : 'Open Camera'}
                       </button>
                       <button 
                          onClick={captureFace}
                          disabled={!enrollActive}
-                         className="h-14 bg-blue-600 text-white rounded-2xl flex items-center justify-center font-bold transition-all hover:bg-blue-700 disabled:opacity-30 disabled:grayscale shadow-xl shadow-blue-600/20 active:scale-95 gap-2"
+                         className="h-16 bg-blue-600 text-white rounded-[1.5rem] flex items-center justify-center font-black text-lg transition-all hover:bg-blue-700 disabled:opacity-30 disabled:grayscale shadow-xl shadow-blue-600/20 active:scale-[0.97] gap-3"
                       >
-                         <Camera className="w-5 h-5" /> Capture
+                         <Camera className="w-6 h-6" /> Capture
                       </button>
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-4">
                       <button 
                          onClick={enrollStudent}
                          disabled={loading}
-                         className="h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center font-black text-lg transition-all hover:bg-blue-700 shadow-2xl shadow-blue-600/30 active:scale-95 gap-3"
+                         className="h-20 bg-blue-600 text-white rounded-[1.5rem] flex items-center justify-center font-black text-2xl transition-all hover:bg-blue-700 shadow-[0_20px_40px_-10px_rgba(37,99,235,0.4)] active:scale-[0.97] gap-4"
                       >
-                         {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <CheckCircle2 className="w-6 h-6" />}
-                         {loading ? "Syncing Database..." : "Complete Registration"}
+                         {loading ? <Loader2 className="w-8 h-8 animate-spin" /> : <ShieldCheck className="w-8 h-8" />}
+                         {loading ? "Registration Sync..." : "Confirm & Register"}
                       </button>
                       <button 
                          onClick={retakeFace}
-                         className="h-12 text-slate-400 font-bold text-sm flex items-center justify-center gap-2 hover:text-slate-600 transition-colors"
+                         className="h-10 text-slate-400 font-bold text-sm flex items-center justify-center gap-2 hover:text-slate-600 transition-colors"
                       >
-                         <RefreshCcw className="w-4 h-4" /> Try Again
+                         <RefreshCcw className="w-4 h-4" /> Recalibrate Scan
                       </button>
                     </div>
                   )}
@@ -446,16 +453,19 @@ export default function RegisterFace({ studentId }: { studentId: string }) {
               </div>
 
               {/* Security Badge */}
-              <div className="bg-slate-50/80 p-6 flex items-center justify-center gap-3 border-t border-slate-100">
-                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Encrypted Biometric Handshake Active</span>
+              <div className="bg-slate-50/80 p-6 flex flex-col items-center justify-center gap-2 border-t border-slate-100">
+                 <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-500">AES-256 Biometric Handshake Secure</span>
+                 </div>
+                 <p className="text-[10px] text-slate-400 font-medium">Your biometric data is processed entirely locally and only descriptors are stored.</p>
               </div>
             </div>
 
             {/* Help Link */}
-            <div className="mt-8 text-center">
-               <button className="text-slate-400 hover:text-blue-600 font-bold text-sm transition-colors flex items-center gap-2 mx-auto">
-                 Need assistance? View guide <ArrowRight className="w-4 h-4" />
+            <div className="mt-10 text-center">
+               <button className="text-slate-400 hover:text-blue-600 font-bold text-sm transition-all flex items-center gap-2 mx-auto active:scale-95">
+                 Need technical assistance? Contact AMS Support <ArrowRight className="w-4 h-4" />
                </button>
             </div>
           </motion.div>
@@ -469,10 +479,10 @@ export default function RegisterFace({ studentId }: { studentId: string }) {
             initial={{ opacity: 0, y: 40, x: '-50%' }}
             animate={{ opacity: 1, y: 0, x: '-50%' }}
             exit={{ opacity: 0, scale: 0.9 }}
-            className={`fixed bottom-8 left-1/2 -z-[100] px-6 py-4 rounded-3xl shadow-2xl flex items-center gap-4 border text-white font-bold backdrop-blur-xl ${toast.type === 'success' ? 'bg-emerald-600/90 border-emerald-400/20' : toast.type === 'error' ? 'bg-rose-600/90 border-rose-400/20' : 'bg-slate-900/90 border-slate-700/20'}`}
+            className={`fixed bottom-10 left-1/2 z-[100] px-8 py-5 rounded-[2rem] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.3)] flex items-center gap-4 border text-white font-bold backdrop-blur-2xl ${toast.type === 'success' ? 'bg-emerald-600/90 border-emerald-400/20' : toast.type === 'error' ? 'bg-rose-600/90 border-rose-400/20' : 'bg-slate-900/90 border-slate-700/20'}`}
           >
-             {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : toast.type === 'error' ? <AlertCircle className="w-5 h-5" /> : <Sparkles className="w-5 h-5" />}
-             <span className="text-sm tracking-tight">{toast.msg}</span>
+             {toast.type === 'success' ? <PartyPopper className="w-6 h-6 text-emerald-100" /> : toast.type === 'error' ? <AlertCircle className="w-6 h-6 text-rose-100" /> : <Sparkles className="w-6 h-6 text-blue-100" />}
+             <span className="text-base tracking-tight">{toast.msg}</span>
           </motion.div>
         )}
       </AnimatePresence>
