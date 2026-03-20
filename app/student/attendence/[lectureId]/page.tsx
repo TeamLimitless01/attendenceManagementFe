@@ -12,7 +12,7 @@ import Header from '@/components/Header';
 import Link from 'next/link';
 
 // ── QR Token Verification ─────────────────────────────────────────────────────
-const QR_WINDOW_MS = 3_000;
+const QR_WINDOW_MS = 50_000;
 const SECRET_KEY = process.env.NEXT_PUBLIC_SECRET || "default-attendance-secret-12345";
 
 async function verifyQrToken(token: string, expectedLectureId: string): Promise<{ valid: boolean; reason?: string }> {

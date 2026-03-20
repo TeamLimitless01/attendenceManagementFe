@@ -19,6 +19,7 @@ export const metadata: Metadata = {
 
 import { Providers } from "@/lib/providers/Providers";
 import SmoothScroll from "@/context/SmoothScroll";
+import ChatWidget from "@/components/ChatWidget";
 
 export default function RootLayout({
   children,
@@ -31,7 +32,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <SmoothScroll>
-          <Providers>{children}</Providers>
+          <Providers>
+            {children}
+            <ChatWidget />
+          </Providers>
         </SmoothScroll>
       </body>
     </html>
