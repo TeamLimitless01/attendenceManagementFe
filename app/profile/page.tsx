@@ -117,13 +117,13 @@ export default function Page() {
                 </motion.div>
              </div>
 
-             <motion.button 
+             {/* <motion.button 
                whileHover={{ scale: 1.05 }}
                whileTap={{ scale: 0.95 }}
                className="px-6 py-3 bg-background border border-foreground/10 rounded-2xl text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-sm hover:shadow-lg transition-all mb-4"
              >
                 <Edit2 className="w-4 h-4" /> Edit Profile
-             </motion.button>
+             </motion.button> */}
           </div>
         </section>
 
