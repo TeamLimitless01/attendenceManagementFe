@@ -42,7 +42,7 @@ export default function Page() {
       populate: isStudent ? ['class', 'user'] : isTeacher ? ['user'] : ['user']
     }
   );
-
+//@ts-ignore
   const profile:any = profileData?.data?.[0]?.attributes  || profileData?.data?.[0];
   const userDetails = profile?.name as any || (session?.user as any) || profile?.username as any;
 
