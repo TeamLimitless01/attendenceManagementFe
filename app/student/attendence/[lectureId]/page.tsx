@@ -12,7 +12,7 @@ import Header from '@/components/Header';
 import Link from 'next/link';
 
 // ── QR Token Verification ─────────────────────────────────────────────────────
-const QR_WINDOW_MS = 50_000;
+const QR_WINDOW_MS = 60_000; // 1 minute window
 const SECRET_KEY = process.env.NEXT_PUBLIC_SECRET || "default-attendance-secret-12345";
 
 async function verifyQrToken(token: string, expectedLectureId: string): Promise<{ valid: boolean; reason?: string }> {
@@ -24,8 +24,8 @@ async function verifyQrToken(token: string, expectedLectureId: string): Promise<
   if (isNaN(timestamp)) return { valid: false, reason: "Invalid QR timestamp." };
 
   const age = Date.now() - timestamp;
-  if (age > QR_WINDOW_MS) {
-    return { valid: false, reason: `QR code expired Wait for teacher to refresh.` };
+  if (age < QR_WINDOW_MS) {
+    return { valid: false, reason: `QR code expired (${Math.round(age / 1000)}s old). Wait for teacher to refresh.` };
   }
 
   if (tokenLectureId !== expectedLectureId) {
@@ -179,36 +179,54 @@ function FaceVerifyStep({
 
     async function init() {
       try {
-        // Load face-api.js if not already loaded
-        if (!window.faceapi) {
+        // Load face-api.js if not already functional on window
+        if (!window.faceapi || !window.faceapi.nets) {
           await new Promise<void>((resolve, reject) => {
-            const existing = document.querySelector('script[data-faceapi]');
-            if (existing) { resolve(); return; }
+            const existing = document.querySelector('script[data-faceapi]') as HTMLScriptElement;
+            
+            const onReady = () => {
+              // Wait for the global to actually be attached
+              const check = () => {
+                if (window.faceapi && window.faceapi.nets) resolve();
+                else setTimeout(check, 100);
+              };
+              check();
+            };
+
+            if (existing) {
+              if (window.faceapi && window.faceapi.nets) { resolve(); return; }
+              existing.addEventListener('load', onReady);
+              existing.addEventListener('error', () => reject(new Error("Script found but failed to load")));
+              return;
+            }
+
             const s = document.createElement('script');
             s.src = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';
             s.setAttribute('data-faceapi', '1');
-            s.onload = () => resolve();
-            s.onerror = reject;
+            s.onload = onReady;
+            s.onerror = () => reject(new Error("Failed to load face-api script"));
             document.head.appendChild(s);
           });
         }
 
         if (cancelled) return;
-        setStatusMsg('Loading face detector…');
+        setStatusMsg('Initializing neural nets…');
+        // Final safety check
+        if (!window.faceapi || !window.faceapi.nets) throw new Error("FaceAPI not ready");
+
         await window.faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL);
-        setStatusMsg('Loading landmarks…');
         await window.faceapi.nets.faceLandmark68Net.loadFromUri(FACE_MODEL_URL);
-        setStatusMsg('Loading recognition model…');
         await window.faceapi.nets.faceRecognitionNet.loadFromUri(FACE_MODEL_URL);
 
         if (cancelled) return;
         setStatus('ready');
-        setStatusMsg('Models ready');
+        setStatusMsg('AI Sensor Ready');
         startCamera();
       } catch (err: any) {
         if (!cancelled) {
+          console.error("FaceVerifyStep Init Error:", err);
           setStatus('failed');
-          setStatusMsg('Failed to load AI models: ' + err?.message);
+          setStatusMsg('Face Recognition Error: ' + (err?.message || 'Check connection'));
         }
       }
     }
@@ -218,7 +236,7 @@ function FaceVerifyStep({
       cancelled = true;
       stopCamera();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function stopCamera() {
