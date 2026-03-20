@@ -12,7 +12,7 @@ import Header from '@/components/Header';
 import Link from 'next/link';
 
 // ── QR Token Verification ─────────────────────────────────────────────────────
-const QR_WINDOW_MS = 60_000; // 1 minute window
+const QR_WINDOW_MS = 75_000; // Increased buffer for teacher's 60s rotation
 const SECRET_KEY = process.env.NEXT_PUBLIC_SECRET || "default-attendance-secret-12345";
 
 async function verifyQrToken(token: string, expectedLectureId: string): Promise<{ valid: boolean; reason?: string }> {
@@ -24,8 +24,10 @@ async function verifyQrToken(token: string, expectedLectureId: string): Promise<
   if (isNaN(timestamp)) return { valid: false, reason: "Invalid QR timestamp." };
 
   const age = Date.now() - timestamp;
-  if (age < QR_WINDOW_MS) {
-    return { valid: false, reason: `QR code expired (${Math.round(age / 1000)}s old). Wait for teacher to refresh.` };
+  // If age is greater than window (too old) OR age is significantly negative (student clock is way behind teacher)
+  if (age > QR_WINDOW_MS || age < -10000) {
+    const errorMsg = age < -10000 ? "Clock sync error. Please check your phone's time." : `QR code expired (${Math.round(age / 1000)}s old).`;
+    return { valid: false, reason: errorMsg + " Wait for teacher to refresh." };
   }
 
   if (tokenLectureId !== expectedLectureId) {
@@ -795,7 +797,7 @@ export default function SubmitAttendancePage() {
                   <QrScannerWidget onScanSuccess={handleQrScanned} />
                 </div>
                 <p className="text-white/40 text-xs text-center max-w-xs">
-                  The QR code refreshes every 15 seconds — scan quickly!
+                  The QR code refreshes every 60 seconds — scan quickly!
                 </p>
               </div>
             </motion.div>
