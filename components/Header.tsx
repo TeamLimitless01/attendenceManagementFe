@@ -19,31 +19,27 @@ const Header = () => {
   }, []);
 
   const navLinks = [
-    { name: 'Home', href: '/' ,role:['admin','student','teacher']},
+    { name: 'Home', href: '/' ,role:['admin','student','teacher', 'guest']},
+    { name: 'Features', href: '#features' ,role:['guest']},
+    { name: 'Pricing', href: '#pricing' ,role:['guest']},
+    { name: 'FAQ', href: '#faq' ,role:['guest']},
     { name: 'Profile', href: '/profile',role:['student','teacher']},
     { name: 'Dashboard', href: '/admin/dashboard',role:['admin']},
     { name: 'Teachers', href: '/admin/users',role:['admin']},
     { name: 'Students', href: '/admin/users/students',role:['admin']},
     { name: 'My lectures', href: '/teacher/mylectures',role:['teacher']},
     { name: 'My lectures', href: '/student/mylectures',role:['student']},
-
     { name: 'Subject & Class Management', href: '/admin/lms',role:['admin']},
-    {
-      name:'Attendence',href:'/student/attendence',role:['student']
-    },
-    {
-      name:'Attendence',href:'/teacher/attendence',role:['teacher']
-    },{
-      name:'Dashboard',href:'/teacher/dashboard',role:['teacher']
-    },
-   
+    { name: 'Attendence', href: '/student/attendence',role:['student'] },
+    { name: 'Attendence', href: '/teacher/attendence',role:['teacher'] },
+    { name: 'Dashboard', href: '/teacher/dashboard',role:['teacher'] },
   ];
 
   const filteredNavLinks = navLinks.filter((link) => {
-    if (!data) return false;
+    if (!data) return link.role.includes('guest');
     //@ts-ignore
-    if (link.role.includes(data?.user?.role as string)) return true;
-    return false;
+    const userRole = data?.user?.role as string;
+    return link.role.includes(userRole);
   });
 
   return (
@@ -54,7 +50,7 @@ const Header = () => {
             <div className="p-2 bg-blue-600 rounded-xl group-hover:bg-blue-700 transition-colors">
               <Fingerprint className="w-6 h-6 text-white" />
             </div>
-            <span className="font-bold text-xl tracking-tight">SyncRoll</span>
+            <span className="font-bold text-xl tracking-tight">AMS</span>
           </Link>
           
           <nav className="hidden md:flex space-x-8">
@@ -72,10 +68,10 @@ const Header = () => {
               </button>
             ) : (
               <>
-                <Link href="/login" className="text-sm font-medium text-foreground hover:text-blue-600 transition-colors">
+                <Link href="/login" className="text-sm font-bold text-foreground hover:text-blue-600 transition-colors">
                   Sign In
                 </Link>
-                {/* <Link href="/register" className="px-5 py-2.5 bg-foreground text-background text-sm font-medium rounded-full hover:bg-foreground/90 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-foreground/20">
+                {/* <Link href="/register" className="px-6 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-all hover:scale-105 active:scale-95 shadow-lg shadow-blue-500/20">
                   Get Started
                 </Link> */}
               </>
@@ -128,17 +124,17 @@ const Header = () => {
                   <Link 
                     href="/login" 
                     onClick={() => setMobileMenuOpen(false)}
-                    className="block px-3 py-2 rounded-md text-base font-medium text-foreground hover:text-blue-600 transition-colors"
+                    className="block px-3 py-2 rounded-xl text-base font-bold text-foreground hover:text-blue-600 transition-colors"
                   >
                     Sign In
                   </Link>
-                  {/* <Link 
+                  <Link 
                     href="/register" 
                     onClick={() => setMobileMenuOpen(false)}
-                    className="block px-3 py-2 bg-blue-600 text-white rounded-md text-base font-medium hover:bg-blue-700 transition-colors mt-2 text-center"
+                    className="block px-3 py-3 bg-blue-600 text-white rounded-xl text-base font-bold hover:bg-blue-700 transition-colors mt-2 text-center shadow-lg shadow-blue-500/10"
                   >
                     Get Started
-                  </Link> */}
+                  </Link>
                 </>
               )}
             </div>

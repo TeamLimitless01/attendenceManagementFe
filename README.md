@@ -1,36 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AMS - Attendance Management System
 
-## Getting Started
+AMS is a premium, next-generation attendance management solution built with Next.js 15, AI facial recognition, and real-time geo-tracking. It's designed to automate and simplify attendance workflows for modern institutions and workplaces.
 
-First, run the development server:
+## 🚀 Key Features
+
+- **AI-Powered Face Authentication**: Secure and instant verification using advanced facial recognition models to eliminate buddy-punching.
+- **Precision Geo-fencing**: Restrict attendance logging to authorized GPS coordinates, ensuring users are physically present at the required location.
+- **Role-Based Access Control**:
+  - **Admin**: Full control over users (Teachers/Students), LMS settings, and global analytics.
+  - **Teacher**: Manage lectures, subjects, and view student participation records.
+  - **Student**: Effortless check-ins and personal attendance tracking.
+- **Integrated LMS**: A built-in Learning Management System to handle subjects, classes, and academic scheduling.
+- **Real-Time Analytics Dashboard**: Beautifully designed interactive dashboards providing deep insights into participation trends.
+- **Automated Administrative Reporting**: Export comprehensive attendance data as Excel/CSV for payroll or academic compliance.
+- **Responsive & Modern UI**: A high-end, animated interface built with Tailwind CSS and Framer Motion for a premium user experience.
+
+## 🛠 Tech Stack
+
+- **Frontend**: Next.js 15 (App Router), React, TypeScript.
+- **Styling**: Tailwind CSS, Lucide React (Icons).
+- **Animation**: Framer Motion, Lenis (Smooth Scroll).
+- **Auth**: NextAuth.js.
+- **State/Data**: Strapi (implied from lib/sdk), SWR/React Query patterns.
+
+## 🛠 Getting Started
+
+First, install dependencies:
+
+```bash
+npm install
+```
+
+Then, run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 📁 Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `/app`: Next.js App Router pages (Admin, Teacher, Student portals).
+- `/components`: Reusable UI components including the new animated Home page.
+- `/lib/sdk`: Integration layer for backend services and Strapi.
+- `/face-recognition`: Core logic for AI-based face registration and verification.
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+© 2026 AMS Inc. All rights reserved.
