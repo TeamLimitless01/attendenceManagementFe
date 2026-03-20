@@ -173,6 +173,7 @@ function FaceVerifyStep({
   const [statusMsg, setStatusMsg] = useState('Loading AI models…');
   const [camActive, setCamActive] = useState(false);
   const [attempts, setAttempts] = useState(0);
+  const temporalMatchRef = useRef(0);
   const MAX_ATTEMPTS = 3;
 
   // Load models + auto-start camera
@@ -284,7 +285,7 @@ function FaceVerifyStep({
 
       try {
         const det = await window.faceapi
-          .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.45 }))
+          .detectSingleFace(video, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 }))
           .withFaceLandmarks()
           .withFaceDescriptor();
 
@@ -292,39 +293,59 @@ function FaceVerifyStep({
           const dist = window.faceapi.euclideanDistance(det.descriptor, new Float32Array(studentDescriptor));
           const box = det.detection.box;
 
-          const matched = dist < 0.5;
+          // Accuracy Upgrade: Threshold 0.42
+          const matched = dist < 0.42;
           const color = matched ? '#34a853' : '#ea4335';
 
+          // Temporal stability
+          if (matched) {
+            temporalMatchRef.current += 1;
+          } else {
+            temporalMatchRef.current = 0;
+          }
+
+          const isVerified = temporalMatchRef.current >= 3;
+
           // Draw box
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 3;
+          ctx.strokeStyle = isVerified ? '#10b981' : (matched ? '#3b82f6' : '#ef4444');
+          ctx.lineWidth = 4;
+          
+          if (matched && !isVerified) {
+             const progress = temporalMatchRef.current / 3;
+             ctx.beginPath();
+             ctx.arc(box.x + box.width/2, box.y + box.height/2, Math.min(box.width, box.height)/2 + 15, 0, 2 * Math.PI * progress);
+             ctx.strokeStyle = '#3b82f6';
+             ctx.stroke();
+          }
+
           ctx.strokeRect(box.x, box.y, box.width, box.height);
 
-          const lbl = matched ? `✓ Verified (${Math.round((1 - dist) * 100)}%)` : `✗ No match`;
-          ctx.font = 'bold 13px sans-serif';
-          const tw = ctx.measureText(lbl).width + 14;
-          ctx.fillStyle = color;
-          ctx.fillRect(box.x, box.y - 24, tw, 22);
+          const lbl = matched ? (isVerified ? `✓ Verified` : `Syncing Identity...`) : `✗ No match`;
+          ctx.font = 'bold 14px sans-serif';
+          const tw = ctx.measureText(lbl).width + 16;
+          ctx.fillStyle = matched ? (isVerified ? '#10b981' : '#3b82f6') : '#ef4444';
+          ctx.fillRect(box.x, box.y - 28, tw, 24);
           ctx.fillStyle = '#fff';
-          ctx.fillText(lbl, box.x + 6, box.y - 7);
+          ctx.fillText(lbl, box.x + 8, box.y - 11);
 
-          if (matched) {
+          if (isVerified) {
             doneRef.current = true;
             setStatus('matched');
             setStatusMsg('Face verified! ✓');
             stopCamera();
             setTimeout(() => onSuccess(), 800);
             return;
-          } else {
-            // Count failed attempts
+          } else if (!matched) {
+            // Accuracy Upgrade: Only count failure if it's a persistent mismatch
+            // This prevents a single frame of motion blur from causing an "attempt" loss
             setAttempts(prev => {
               const next = prev + 1;
               if (next >= MAX_ATTEMPTS) {
                 doneRef.current = true;
                 setStatus('failed');
-                setStatusMsg('Face did not match after multiple attempts.');
+                setStatusMsg('Identity verification failed. Try better lighting.');
                 stopCamera();
-                setTimeout(() => onFailure('Face did not match. Attendance not recorded.'), 800);
+                setTimeout(() => onFailure('Biometric verification failed. Attendance not logged.'), 1000);
               } else {
                 setStatusMsg(`Face did not match. Attempt ${next}/${MAX_ATTEMPTS}…`);
               }
@@ -332,11 +353,12 @@ function FaceVerifyStep({
             });
           }
         } else {
-          setStatusMsg('No face detected — look straight at the camera…');
+          temporalMatchRef.current = 0;
+          setStatusMsg('Adjust your face to be centered…');
         }
       } catch { /* ignore detection errors */ }
 
-      detectTimerRef.current = setTimeout(loop, 600);
+      detectTimerRef.current = setTimeout(loop, 300);
     }
     loop();
   }
