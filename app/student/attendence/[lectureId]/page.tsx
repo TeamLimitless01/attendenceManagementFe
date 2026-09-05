@@ -10,6 +10,7 @@ import { strapi } from '@/lib/sdk/sdk';
 import { useStrapi } from '@/lib/sdk/useStrapi';
 import Header from '@/components/Header';
 import Link from 'next/link';
+import { formatDate, formatTimeRange, getErrorMessage } from '@/lib/formatters';
 
 // ── QR Token Verification ─────────────────────────────────────────────────────
 const QR_WINDOW_MS = 5_000; // Tight window for fast 2s rotation demo
@@ -505,7 +506,7 @@ export default function SubmitAttendancePage() {
       setScanState('idle');
       setTimeout(() => router.push('/student/mylectures'), 1800);
     } catch (err: any) {
-      toast.error(err?.response?.data?.error?.message || "Failed to save attendance.");
+      toast.error(getErrorMessage(err, "Failed to save attendance."));
       setScanState('idle');
     } finally {
       setIsSubmitting(false);
@@ -533,7 +534,7 @@ export default function SubmitAttendancePage() {
       await mutateAttendance();
       setTimeout(() => router.push('/student/mylectures'), 1500);
     } catch (err: any) {
-      toast.error(err?.response?.data?.error?.message || "Failed to send request.");
+      toast.error(getErrorMessage(err, "Failed to send request."));
     } finally {
       setIsSubmitting(false);
     }
@@ -643,7 +644,7 @@ export default function SubmitAttendancePage() {
                     <Calendar className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
                     <div>
                       <p className="text-xs font-bold text-foreground/40 uppercase">Date</p>
-                      <p className="text-sm font-semibold text-foreground/80">{todayDate}</p>
+                      <p className="text-sm font-semibold text-foreground/80">{formatDate(todayDate)}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-2.5">
@@ -651,7 +652,7 @@ export default function SubmitAttendancePage() {
                     <div>
                       <p className="text-xs font-bold text-foreground/40 uppercase">Duration</p>
                       <p className="text-sm font-semibold text-foreground/80">
-                        {lectureAttr.start_time?.slice(0,5)} – {lectureAttr.end_time?.slice(0,5)}
+                        {formatTimeRange(lectureAttr.start_time, lectureAttr.end_time)}
                       </p>
                     </div>
                   </div>

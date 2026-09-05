@@ -12,6 +12,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import Header from '@/components/Header';
 import { strapi } from '@/lib/sdk/sdk';
 import { useStrapi } from '@/lib/sdk/useStrapi';
+import { formatDate, formatTimeRange, getErrorMessage } from '@/lib/formatters';
 
 const TABS = [
   { id: 'lectures', label: 'Lectures & Schedule', icon: Calendar },
@@ -139,7 +140,7 @@ export default function LMSManagerPage() {
       setIsModalOpen(false);
     } catch (err: any) {
       console.error(err);
-      toast.error(err?.response?.data?.error?.message || "Failed to save entry");
+      toast.error(getErrorMessage(err, "Failed to save entry"));
     } finally {
       setIsSubmitting(false);
     }
@@ -152,7 +153,7 @@ export default function LMSManagerPage() {
       toast.success("Entry deleted successfully!");
       handleMutate();
     } catch (err) {
-      toast.error("Failed to delete entry.");
+      toast.error(getErrorMessage(err, "Failed to delete entry."));
     }
   };
 
@@ -237,11 +238,11 @@ export default function LMSManagerPage() {
             <div className="font-semibold text-foreground/90 mb-1">{item.name}</div>
             <div className="text-sm text-foreground/60 flex items-center gap-1.5 mt-1">
                <Clock className="w-3.5 h-3.5" />
-               {item.start_time?.slice(0,5)} - {item.end_time?.slice(0,5)} • {dayName}
+               {formatTimeRange(item.start_time, item.end_time)} • {dayName}
             </div>
             {(item.start_date || item.end_date) && (
               <div className="text-xs text-foreground/50 mt-1">
-                {item.start_date} to {item.end_date}
+                {formatDate(item.start_date)} to {formatDate(item.end_date)}
               </div>
             )}
           </td>

@@ -8,6 +8,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import Header from '@/components/Header';
 import { strapi } from '@/lib/sdk/sdk';
 import { useStrapi } from '@/lib/sdk/useStrapi';
+import { formatDate, formatTimeRange, getErrorMessage } from '@/lib/formatters';
 
 const DAYS = [
   { id: 1, label: 'Monday' },
@@ -76,7 +77,7 @@ export default function MyLecturesPage() {
 
       toast.success("Student added to your lecture!");
     } catch (err: any) {
-      toast.error(err.message || "Failed to add student to lecture.");
+      toast.error(getErrorMessage(err, "Failed to add student to lecture."));
     } finally {
       setAddingStudentId(null);
     }
@@ -176,7 +177,7 @@ export default function MyLecturesPage() {
                                     <Calendar className="w-4 h-4" /> {dayName}
                                   </div>
                                   <div className="flex items-center gap-1.5">
-                                    <Clock className="w-4 h-4" /> {lecture.start_time?.slice(0,5)} - {lecture.end_time?.slice(0,5)}
+                                    <Clock className="w-4 h-4" /> {formatTimeRange(lecture.start_time, lecture.end_time)}
                                   </div>
                                   <div className="flex items-center gap-1.5 text-blue-600">
                                     <MapPin className="w-4 h-4" /> {roomName}

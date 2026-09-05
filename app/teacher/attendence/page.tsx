@@ -7,6 +7,7 @@ import Header from '@/components/Header';
 import { useStrapi } from '@/lib/sdk/useStrapi';
 import QRCode from "react-qr-code";
 import { strapi } from '@/lib/sdk/sdk';
+import { formatDate, formatTimeRange, getErrorMessage } from '@/lib/formatters';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -120,7 +121,7 @@ export default function TeacherAttendanceHub() {
       setActiveSessionsMap(prev => ({ ...prev, [lectureId]: lectureId }));
     } catch (err: any) {
       console.error(err);
-      toast.error("Failed to start session.");
+      toast.error(getErrorMessage(err, "Failed to start session."));
     }
   };
 
@@ -138,7 +139,7 @@ export default function TeacherAttendanceHub() {
       }
     } catch (err) {
       console.error(err);
-      toast.error("Could not end the session.");
+      toast.error(getErrorMessage(err, "Could not end the session."));
     }
   };
 
@@ -164,7 +165,7 @@ export default function TeacherAttendanceHub() {
       // The useStrapi hook will need to be refreshed if we have nested data, 
       // but if we use it inside the modal it will auto-update if we manage mutate.
     } catch (err) {
-      toast.error("Failed to approve attendance.");
+      toast.error(getErrorMessage(err, "Failed to approve attendance."));
     } finally {
       setIsApproving(null);
     }
@@ -272,7 +273,7 @@ export default function TeacherAttendanceHub() {
                                     <Calendar className="w-4 h-4" /> {dayName}
                                   </div>
                                   <div className={`flex items-center gap-1.5 ${isActive ? 'text-blue-600 font-bold' : ''}`}>
-                                    <Clock className="w-4 h-4" /> {lecture.start_time?.slice(0,5)} - {lecture.end_time?.slice(0,5)}
+                                     <Clock className="w-4 h-4" /> {formatTimeRange(lecture.start_time, lecture.end_time)}
                                   </div>
                                   <div className="flex items-center gap-1.5 text-orange-600 mt-1">
                                     <MapPin className="w-4 h-4" /> {roomName}

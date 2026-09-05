@@ -7,6 +7,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import Header from '@/components/Header';
 import { strapi } from '@/lib/sdk/sdk';
 import { useStrapi } from '@/lib/sdk/useStrapi';
+import { getErrorMessage } from '@/lib/formatters';
 
 // Fallbacks for localhost testing
 const API_URL = process.env.NEXT_PUBLIC_STRAPI_URL ?? '';
@@ -84,7 +85,7 @@ export default function AdminStudentsPage() {
       await mutate();
       
     } catch (err: any) {
-      toast.error(err.message || "Something went wrong.");
+      toast.error(getErrorMessage(err, "Something went wrong."));
     } finally {
       setIsSubmitting(false);
     }

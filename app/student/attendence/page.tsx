@@ -25,6 +25,7 @@ import {
 import { useStrapi } from '@/lib/sdk/useStrapi';
 import Header from '@/components/Header';
 import Link from 'next/link';
+import { formatDate, formatTimeRange, getErrorMessage } from '@/lib/formatters';
 
 const DAYS = [
   { id: 1, label: 'Monday' },
@@ -305,7 +306,7 @@ export default function StudentAttendanceHub() {
                 <div className="flex items-center justify-between gap-4 pt-4 border-t border-foreground/5">
                    <div className="flex items-center gap-2">
                      <Clock className="w-4 h-4 text-foreground/20" />
-                     <span className="text-xs font-bold text-foreground/40">{lecture.start_time?.slice(0,5)} - {lecture.end_time?.slice(0,5)}</span>
+                     <span className="text-xs font-bold text-foreground/40">{formatTimeRange(lecture.start_time, lecture.end_time)}</span>
                    </div>
                    <Link 
                      href={`/student/attendence/${lecture.id}`} 
