@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  email     String   @unique
+  password  String
+  type      String?  // 'admin' | 'teacher' | 'student'
+  confirmed Boolean  @default(true)
+  blocked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  admin   Admin?
+  teacher Teacher?
+  student Student?
+
+  @@map("users")
+}
+
+model Admin {
+  id          String   @id @default(uuid())
+  employee_id String?
+  department  String?
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("admins")
+}
+
+model Teacher {
+  id          String    @id @default(uuid())
+  name        String?
+  employee_id String?
+  department  String?
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lectures    Lecture[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("teachers")
+}
+
+model Student {
+  id               String       @id @default(uuid())
+  name             String?
+  roll_number      String?      @unique
+  device_id        String?
+  photo            String?
+  faceEmbedding    Json?
+  isFaceRegistered Boolean      @default(false)
+  userId           String       @unique
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  classId          String?
+  class            Class?       @relation(fields: [classId], references: [id], onDelete: SetNull)
+
+  lectureId        String?
+  lecture          Lecture?     @relation("LectureEnrolledStudents", fields: [lectureId], references: [id], onDelete: SetNull)
+
+  attendences      Attendence[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@map("students")
+}
+
+model Class {
+  id         String    @id @default(uuid())
+  name       String
+  slug       String    @unique
+  department String?
+  semester   Int?
+  batch_year Int?
+  lectures   Lecture[]
+  students   Student[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@map("classes")
+}
+
+model Classroom {
+  id        String    @id @default(uuid())
+  name      String
+  slug      String    @unique
+  radius    Int?
+  latitude  Float?
+  longitude Float?
+  lectures  Lecture[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("classrooms")
+}
+
+model Subject {
+  id        String    @id @default(uuid())
+  name      String?
+  slug      String    @unique
+  code      String    @unique
+  lectures  Lecture[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("subjects")
+}
+
+model Lecture {
+  id              String       @id @default(uuid())
+  name            String
+  slug            String       @unique
+  classId         String?
+  class           Class?       @relation(fields: [classId], references: [id], onDelete: SetNull)
+  subjectId       String?
+  subject         Subject?     @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  teacherId       String?
+  teacher         Teacher?     @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  classroomId     String?
+  classroom       Classroom?   @relation(fields: [classroomId], references: [id], onDelete: SetNull)
+  start_time      String?
+  end_time        String?
+  start_date      DateTime?
+  end_date        DateTime?
+  day_of_week     Int?
+  isSessionActive Boolean      @default(false)
+  students        Student[]    @relation("LectureEnrolledStudents")
+  attendences     Attendence[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@map("lectures")
+}
+
+model Attendence {
+  id            String   @id @default(uuid())
+  studentId     String
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lectureId     String
+  lecture       Lecture  @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+  date          DateTime @default(now())
+  type          String?  // "manual" | "auto"
+  currentStatus String?  // "present" | "absent"
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("attendences")
+}

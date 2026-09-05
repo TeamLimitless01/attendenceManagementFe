@@ -118,10 +118,16 @@ export default function LMSManagerPage() {
       }
 
       if (editingId) {
-        delete payload['id']
-        delete payload['documentId']
-        delete payload['createdAt']
-        delete payload['updatedAt']
+        delete payload['id'];
+        delete payload['documentId'];
+        delete payload['createdAt'];
+        delete payload['updatedAt'];
+        delete payload['classId'];
+        delete payload['subjectId'];
+        delete payload['teacherId'];
+        delete payload['classroomId'];
+        delete payload['students'];
+        delete payload['attendences'];
         await strapi.update(activeTab as any, editingId, payload);
         toast.success(`${activeTab} entry updated successfully!`);
       } else {

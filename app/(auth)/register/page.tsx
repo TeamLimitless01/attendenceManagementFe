@@ -57,7 +57,8 @@ export default function RegisterPage() {
         setLoading(true);
 
         try {
-            await strapiRegister(email.trim(), email.trim(), password);
+            await strapiRegister(username.trim(), email.trim(), password);
+
 
             // Auto sign-in after successful registration
             const result = await signIn("credentials", {

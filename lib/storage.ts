@@ -11,23 +11,27 @@ export function loadStudents(): Student[] {
 }
 
 export async function saveStudents(students: Student[]): Promise<void> {
-  // localStorage.setItem(STUDENTS_KEY, JSON.stringify(students));
   try {
-    console.log("gello", {
-      students
-    })
-    const res = await strapi.update("students", `${students[0].roll}`, {
-      faceEmbedding: students[0].descriptor,
-      photo: students[0].photo,
+    if (!students || students.length === 0) return;
+    const studentItem = students[0];
+    const targetKey = studentItem.id || studentItem.roll || (studentItem as any).roll_number || (studentItem as any).documentId;
 
-    })
+    if (!targetKey) {
+      console.warn('saveStudents skipped: missing student identifier', studentItem);
+      return;
+    }
+
+    const res = await strapi.update("students", targetKey, {
+      faceEmbedding: studentItem.descriptor,
+      photo: studentItem.photo,
+    });
+
     if (!res) {
       throw new Error('Failed to save students');
     }
   } catch (error) {
     console.error('Error saving students:', error);
   }
-
 }
 
 export function loadLogs(): LogEntry[] {

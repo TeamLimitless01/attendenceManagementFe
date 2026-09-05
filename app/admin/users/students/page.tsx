@@ -9,8 +9,9 @@ import { strapi } from '@/lib/sdk/sdk';
 import { useStrapi } from '@/lib/sdk/useStrapi';
 
 // Fallbacks for localhost testing
-const API_URL = process.env.NEXT_PUBLIC_STRAPI_URL || 'http://localhost:1337';
+const API_URL = process.env.NEXT_PUBLIC_STRAPI_URL ?? '';
 const API_TOKEN = process.env.NEXT_PUBLIC_STRAPI_TOKEN || '';
+
 
 export default function AdminStudentsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -58,7 +59,8 @@ export default function AdminStudentsPage() {
       const jwtToUpdate = userRes?.jwt;
       const userData = userRes?.user;
 
-      await fetch(`${process.env.NEXT_PUBLIC_STRAPI_URL || 'http://localhost:1337'}/api/users/${userData?.id}`, {
+      await fetch(`${API_URL}/api/users/${userData?.id}`, {
+
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${jwtToUpdate} `,

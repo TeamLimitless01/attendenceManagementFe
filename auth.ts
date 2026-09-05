@@ -30,8 +30,10 @@ export const authOptions: NextAuthOptions = {
 
                     return null;
                 } catch (err: any) {
-                    throw Error(err.error.message || "something went wrong...")
+                    console.error("Auth error:", err);
+                    throw new Error(err?.response?.data?.error?.message || err?.error?.message || err?.message || "something went wrong...");
                 }
+
             },
         }),
     ],

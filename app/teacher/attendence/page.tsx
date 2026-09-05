@@ -97,15 +97,18 @@ export default function TeacherAttendanceHub() {
     const timeString = currentTime.toTimeString().slice(0, 5); // HH:mm - local
     const dateString = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, '0')}-${String(currentTime.getDate()).padStart(2, '0')}`; // YYYY-MM-DD - local
     
-    if (lecture.day_of_week !== currentDay) return false;
+    if (lecture.day_of_week && Number(lecture.day_of_week) !== currentDay) return false;
     
     const startStr = lecture.start_time?.slice(0,5);
     const endStr = lecture.end_time?.slice(0,5);
     
-    if (timeString < startStr || timeString > endStr) return false;
+    if (startStr && endStr && (timeString < startStr || timeString > endStr)) return false;
     
-    if (lecture.start_date && dateString < lecture.start_date) return false;
-    if (lecture.end_date && dateString > lecture.end_date) return false;
+    const startDateStr = typeof lecture.start_date === 'string' ? lecture.start_date.split('T')[0] : (lecture.start_date instanceof Date ? lecture.start_date.toISOString().split('T')[0] : '');
+    const endDateStr = typeof lecture.end_date === 'string' ? lecture.end_date.split('T')[0] : (lecture.end_date instanceof Date ? lecture.end_date.toISOString().split('T')[0] : '');
+
+    if (startDateStr && dateString < startDateStr) return false;
+    if (endDateStr && dateString > endDateStr) return false;
     
     return true;
   };
@@ -232,7 +235,7 @@ export default function TeacherAttendanceHub() {
                     const lectureTitle = lecture.name || subName;
                     const isActive = checkIsActive(lecture);
                     
-                    const isSessionRunningForThis = !!activeSessionsMap[lId];
+                    const isSessionRunningForThis = activeSessionsMap[lId] !== undefined ? !!activeSessionsMap[lId] : Boolean(lecture.isSessionActive);
 
                     return (
                       <motion.div 
