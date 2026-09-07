@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Search, Calendar, BookOpen, Clock, Loader2, MapPin, CheckCircle2, ScanFace } from 'lucide-react';
+import { Search, Calendar, BookOpen, Clock, Loader2, MapPin, CheckCircle2, ScanFace, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import { useStrapi } from '@/lib/sdk/useStrapi';
@@ -218,6 +218,11 @@ export default function StudentMyLecturesPage() {
                                   Attendance is closed outside of active lecture hours or session not started yet
                                </div>
                             )}
+                            <Link href="/student/dashboard" className="w-full mt-3">
+                                <button className="w-full py-3 bg-blue-600/10 hover:bg-blue-600/20 text-blue-600 font-bold rounded-xl transition-all border border-blue-600/20 flex justify-center items-center gap-2">
+                                   <TrendingUp className="w-5 h-5" /> View My Analytics
+                                </button>
+                            </Link>
                          </div>
                       </motion.div>
                     )

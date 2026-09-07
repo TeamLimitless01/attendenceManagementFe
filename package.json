@@ -20,12 +20,15 @@
     "lucide-react": "^0.575.0",
     "next": "16.1.6",
     "next-auth": "^4.24.13",
+    "pusher": "^5.3.4",
+    "pusher-js": "^8.6.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-markdown": "^10.1.0",
     "react-qr-code": "^2.0.18",
     "react-qr-reader": "^3.0.0-beta-1",
     "react-toastify": "^11.0.5",
+    "recharts": "^3.10.1",
     "remark-gfm": "^4.0.1",
     "strapi-sdk-js": "^3.0.0",
     "swr": "^2.4.0",
@@ -45,4 +48,3 @@
     "typescript": "^5"
   }
 }
-

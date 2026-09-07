@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { formatResponse } from '@/lib/api-utils';
+import { pusherServer } from '@/lib/pusher';
 
 export async function GET(req: Request) {
   try {
@@ -107,6 +108,15 @@ export async function POST(req: Request) {
       },
     });
 
+    try {
+      await pusherServer.trigger('attendance-channel', 'attendance-marked', {
+        message: `${attendence.student.user.username || 'A student'} was marked ${attendence.currentStatus}`,
+        lectureId: attendence.lectureId,
+        studentId: attendence.studentId
+      });
+    } catch (e) {
+      console.error('Pusher event error:', e);
+    }
 
     return formatResponse(attendence);
   } catch (error: any) {

@@ -15,4 +15,4 @@ export const strapi = new Strapi({
         },
     },
 });
-
+
